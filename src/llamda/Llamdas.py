@@ -1,5 +1,5 @@
 import json
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, ConfigDict, field_validator
 from typing import Dict, List, Any
 
 from openai.types.chat import ChatCompletionMessage
@@ -9,18 +9,24 @@ from .LlamdaFunction import LlamdaFunction
 
     
 class Llamdas(BaseModel):
-    functions: Dict[str, LlamdaFunction] = Field(..., description="Mapping of function names to LlamdaFunction instances", example={"exampleFunction": LlamdaFunction})
-    handle_exceptions: bool = Field(default=True, description="Flag to determine if exceptions should be automatically handled")
+    model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True)
+    functions: Dict[str, LlamdaFunction] = Field(..., json_schema_extra={"description": "Mapping of function names to LlamdaFunction instances", "example": {"exampleFunction": LlamdaFunction}})
+    handle_exceptions: bool = Field(default=True, json_schema_extra={"description": "Flag to determine if exceptions should be automatically handled"})
 
-    @validator('functions', pre=True)
+    @field_validator('functions', mode='before')
+    @classmethod
     def transform_functions(cls, v):
-        assert isinstance(v, List)
-        if not all(isinstance(func, LlamdaFunction) for func in v):
+
+        if (isinstance(v, List) and not all(isinstance(func, LlamdaFunction) for func in v))\
+                or isinstance(v, Dict) and not all(isinstance(func, LlamdaFunction) for func in v.values()):
             raise ValueError('All values in functions must be instances of LlamdaFunction')
 
-        return {func.__name__: func for func in v}
-    class Config:
-        arbitrary_types_allowed = True
+        if isinstance(v, List):
+            func_names = [func.__name__ for func in v]
+            if len(func_names) != len(set(func_names)):
+                raise ValueError('Function names must be unique')
+
+        return {func.__name__: func for func in v} if isinstance(v, List) else v
 
     def to_openai_tools(self):
         return [
