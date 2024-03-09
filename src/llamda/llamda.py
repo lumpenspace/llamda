@@ -1,10 +1,7 @@
 import inspect
-import re
 from typing import Callable, Dict, Optional, Union, get_args, get_origin, Type
 from llamda.response_types import ResultObject, ExecReturnType
-
-def strip_params_from_docstring(docstring: str) -> str:
-    return re.sub(r"@param\s+\w+:.*\n?", "", docstring).strip()
+from llamda.introspection_tools import get_type_str, is_argument_required, get_docstring_descriptions, strip_meta_from_docstring
 
 def llamda(func: Optional[Callable[..., ExecReturnType]] = None, /, *, handle_exceptions: bool = False, **descriptions: str):
     def decorator(func: Callable[..., ExecReturnType]) -> Callable[..., ResultObject[ExecReturnType]]:
@@ -13,18 +10,13 @@ def llamda(func: Optional[Callable[..., ExecReturnType]] = None, /, *, handle_ex
         # Extract main description from decorator params or docstring
         description = descriptions.get(
             "main",
-            strip_params_from_docstring(func.__doc__) if func.__doc__ else None)
+            strip_meta_from_docstring(func.__doc__) if func.__doc__ else None)
     
         if not description:
             raise ValueError(f"Description missing for function '{func.__name__}'")
-       
+
         # Extract parameter descriptions from the docstring
-        docstring_descriptions = {}
-        if func.__doc__:
-            pattern = r"@param\s+(\w+):\s*(.*)"
-            matches = re.findall(pattern, func.__doc__)
-            docstring_descriptions = {name: description for name, description in matches}
-        
+        docstring_descriptions = get_docstring_descriptions(func.__doc__)
         # Merge descriptions from arguments and docstring
         merged_descriptions = {**descriptions, **docstring_descriptions}
         
@@ -89,18 +81,3 @@ def llamda(func: Optional[Callable[..., ExecReturnType]] = None, /, *, handle_ex
 
         return wrapper
     return decorator if func is None else decorator(func)
-
-def get_type_str(annotation: Type):
-    origin = get_origin(annotation)
-    if origin is Union:
-        args = get_args(annotation)
-        return [get_type_str(arg) for arg in args if arg is not type(None)]
-    elif origin is Optional:
-        args = get_args(annotation)
-        return get_type_str(args[0])
-    return annotation.__name__.lower()
-
-def is_argument_required(argument: inspect.Parameter) -> bool:
-    return argument.default is inspect.Parameter.empty and (\
-        (get_origin(argument.annotation) is not Optional) or\
-        (get_origin(argument.annotation) is Union and type(None) not in get_args(argument.annotation)))
