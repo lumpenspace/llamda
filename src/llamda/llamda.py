@@ -33,16 +33,20 @@ def llamda(func: Optional[Callable[..., ExecReturnType]] = None, /, *, handle_ex
         func.descriptions = merged_descriptions
         
         def wrapper(*args, **kwargs) -> ResultObject:
+            # Construct a new arguments dictionary that aligns with the signature's expectations
+            bound_args = signature.bind(*args, **kwargs)
+            bound_args.apply_defaults()
+
             # Check if all required parameters are present and of the correct type
             parameter_errors = {}
             for name, parameter in signature.parameters.items():
-                if get_origin(parameter.annotation) is not Optional and name not in kwargs:
+                if is_argument_required(parameter) and name not in bound_args.arguments:
                     parameter_errors[name] = f"Parameter '{name}' is required"
-                    next
-                if name in kwargs and parameter.annotation is not inspect.Parameter.empty:
+                    continue
+                if name in bound_args.arguments and parameter.annotation is not inspect.Parameter.empty:
                     expected_types = get_args(parameter.annotation) if get_origin(parameter.annotation) is Union else (parameter.annotation,)
-                    if not isinstance(kwargs[name], tuple(expected_types)):
-                        parameter_errors[name] = f"Parameter '{name}' is not of type '{parameter.annotation}'"
+                    if not isinstance(bound_args.arguments[name], expected_types):
+                        parameter_errors[name] = f"Parameter '{name}' is not of type '{get_type_str(parameter.annotation)}'"
             if parameter_errors:
                 if handle_exceptions:
                     return ResultObject(success=False, parameter_errors=parameter_errors)
@@ -50,14 +54,14 @@ def llamda(func: Optional[Callable[..., ExecReturnType]] = None, /, *, handle_ex
                     raise ValueError(parameter_errors)
 
             try:
-                result = func(*args, **kwargs)
+                result = func(**bound_args.arguments)
                 return ResultObject(result=result, success=True)
             except Exception as e:
                 if handle_exceptions:
                     return ResultObject(success=False, exception=str(e))
                 else:
                     raise e
-                
+
         wrapper.to_schema = lambda: {
             "name": func.__name__,
             "description": description,
