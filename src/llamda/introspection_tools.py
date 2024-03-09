@@ -35,8 +35,8 @@ def get_type_str(annotation: Type):
     return annotation.__name__.lower()
 
 def is_argument_required(argument: inspect.Parameter) -> bool:
-    # check if param is Optional type
-    optional = get_origin(argument.annotation) is Optional or (get_origin(argument.annotation) is Union and type(None) in get_args(argument.annotation))
-    # check if param has a default value
+    origin = get_origin(argument.annotation)
+    args = get_args(argument.annotation)
+    optional = origin is Union and type(None) in args
     has_default = argument.default is not inspect.Parameter.empty
     return not optional and not has_default

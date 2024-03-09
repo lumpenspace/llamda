@@ -1,27 +1,26 @@
 import json
-from pydantic import BaseModel, Field
-from typing import Dict, Any, Callable
-from llamda.response_types import ExecutionResponseItem, ResultObject
+from pydantic import BaseModel, Field, validator
+from typing import Dict, List, Any
 
-class ExecutionResponse(BaseModel):
-    results: Field[Dict[str, ExecutionResponseItem]]
+from openai.types.chat import ChatCompletionMessage
 
-    def to_tool_response(self) -> str:
-        tool_responses = []
-        for call_id, result in self.results.items():
-            content = result
-            tool_response = {
-                "role": "tool",
-                "content": content,
-                "tool_call_id": call_id
-            }
-            tool_responses.append(tool_response)
-        return json.dumps(tool_responses)
+from .response_types import ToolCallResult, ExecutionResponse
+from .LlamdaFunction import LlamdaFunction
 
+    
 class Llamdas(BaseModel):
-    functions: Field[Dict[str, Callable[..., ResultObject]]]     
-    def __init__(self, functions):
-        self.functions = {func.__name__: func for func in functions}
+    functions: Dict[str, LlamdaFunction] = Field(..., description="Mapping of function names to LlamdaFunction instances", example={"exampleFunction": LlamdaFunction})
+    handle_exceptions: bool = Field(default=True, description="Flag to determine if exceptions should be automatically handled")
+
+    @validator('functions', pre=True)
+    def transform_functions(cls, v):
+        assert isinstance(v, List)
+        if not all(isinstance(func, LlamdaFunction) for func in v):
+            raise ValueError('All values in functions must be instances of LlamdaFunction')
+
+        return {func.__name__: func for func in v}
+    class Config:
+        arbitrary_types_allowed = True
 
     def to_openai_tools(self):
         return [
@@ -32,7 +31,7 @@ class Llamdas(BaseModel):
             for func in self.functions.values()
         ]
 
-    def execute(self, message: Dict[str, Any]) -> ExecutionResponse:
+    def execute(self, message: ChatCompletionMessage) -> ExecutionResponse:
         if "tool_calls" in message:
             tool_calls = message["tool_calls"]
             results = {}
@@ -41,19 +40,27 @@ class Llamdas(BaseModel):
                 if func_name in self.functions:
                     func = self.functions[func_name]
                     try:
-                        args = json.loads(call["function"]["arguments"])
-                        result = func(**args)
+                        args:Dict[str, Any] = json.loads(call["function"]["arguments"])
+                        print(f"Args: {args}")
+                        print(f"Function: {func}")
+
+                        print(f"Executing function: {func_name}")
+                        result = func(**args, handle_exceptions=self.handle_exceptions)
+
+                        print(f"Function execution completed. Result: {result}")
+
+
                         results[call["id"]] = {
                             "function_name": func_name,
                             "result": result
                         }
                     except Exception as e:
-                        if func.handle_exceptions:
+                        if self.handle_exceptions:
                             results[call["id"]] = {
                                 "function_name": func_name,
-                                "result": ResultObject(success=False, exception=str(e))
+                                "result": ToolCallResult(**{"success": False, "exception": str(e), "result": None})
                             }
                         else:
                             raise e
-            return ExecutionResponse(results)
+            return ExecutionResponse(results=results)
         return None

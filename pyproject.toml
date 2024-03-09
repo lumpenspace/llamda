@@ -8,6 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.9"
 pydantic = "^2.6.3"
+openai = "^1.13.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"

@@ -1,12 +1,13 @@
 import pytest
+import inspect
+from typing import Optional, Union
+
 from llamda.introspection_tools import (
     strip_meta_from_docstring,
     get_docstring_descriptions,
     get_type_str,
     is_argument_required
 )
-import inspect
-from typing import Optional, Union
 
 def test_strip_meta_from_docstring():
     docstring = """

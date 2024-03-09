@@ -1,6 +1,6 @@
-# llambda
+# llamda
 
-`llambda` is a Python library that provides a decorator and utility functions for simplifying function calls / tool use in LLM.
+`llamda` is a Python library that provides a decorator and utility functions for simplifying function calls / tool use in LLM.
 
 Features include:
 
@@ -9,15 +9,15 @@ Features include:
 
 ## Installation
 
-You can install `llambda` using pip:
+You can install `llamda` using pip:
 
 ```bash
-pip install llambda
+pip install llamda
 ```
 
 ## Decorator usage
 
-The `llambda.make` decorator is used to convert a Python function to an LLM request.
+The `llamda.make` decorator is used to convert a Python function to an LLM request.
 
 The function requires:
 
@@ -29,10 +29,10 @@ The decorator is passed a named argument for each parameter of the function, the
 It can be passed a `handle_exceptions` argument to specify whether to handle exceptions in the function, see the [Return Values](#return-values) section for more details.
 
 ```python
-import llambda
+import llamda
 from typing import Optional, Union
 
-@llambda.make(
+@llamda.make(
     location='The location for the weather',
     date='The date for the weather'
 )
@@ -94,19 +94,20 @@ If the `handle_exceptions` argument is set to `True`, the function will handle e
 
 Otherwise, the function will have a `success` value of `True` and raise the exception as normal.
 
-## Usage with LLMs: the LLambdaFunctions class
+## Usage with LLMs: the Llamdas class
 
-`llambda.load_functions` is used to load a list of decorated functions to handle their usage with LLMs.
+`Llamdas` is a class that takes a set of decorated functions to handle their usage with LLMs.
 
-It returns an instance of the `LLambdaFunctions` class, which will take care of transforming the functions to OpenAI tools and handling the responses.
+It returns an instance of the `LlamdaFunctions` class, which will take care of transforming the functions to OpenAI tools and handling the responses.
 
 ```python
 
-import llambda
+import llamda
 import openai
 
 
-llambda_functions = llambda.load_functions(get_weather)
+llamda_functions = Llamdas(get_weather)
+
 
 messages = [
     {"role": "system", "content": "You are a helpful assistant."},
@@ -118,12 +119,12 @@ messages = [
 response = client.chat.completions.create(
   model="gpt-3.5-turbo",
   messages=messages,
-  tools=llambda_functions.to_openai_tools() # Pass the tools to the LLM
+  tools=llamda_functions.to_openai_tools() # Pass the tools to the LLM
 )
 
 message = response['choices'][0]['message']
 
-function_results = llambda_functions.handle_response(message)
+function_results = llamda_functions.handle_response(message)
 if not function_results:
     print(message)
 else:
@@ -131,6 +132,6 @@ else:
         model="gpt-3.5-turbo",
         messages=[...messages, message, function_results.to_openai_message()]
     )
-    messages.append(function_results.to_)
+    messages.append(function_results.to_openai_message())
     print(response['choices'][0]['message'])
 ```
