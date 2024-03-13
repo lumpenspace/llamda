@@ -1,3 +1,7 @@
+THIS IS NOT USABLE
+
+i decided to publish some personal projects i was in the process of making into proper libraries in the hope that shame would push me to actually finish them.
+
 # llamda
 
 `llamda` is a Python library that provides a decorator and utility functions for simplifying function calls / tool use in LLM.
