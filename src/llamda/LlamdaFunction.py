@@ -3,12 +3,27 @@ import inspect
 from .response_types import ToolCallResult, ParameterError
 from .introspection_tools import get_type_str, is_argument_required
 
+"""
+# LlamdaFunction
+
+The `LlamdaFunction` class represents a callable function with additional metadata for use with the Llamda framework.
+"""
+
 class LlamdaFunction:
-    def __init__(self, func, description, signature, param_descriptions):
-        self.func: Callable = func
-        self.description: str = description
-        self.signature: inspect.Signature = signature
-        self.param_descriptions: Dict[str, str] = param_descriptions
+  
+    def __init__(self, func:Callable, description:str, signature:inspect.Signature, param_descriptions: Dict[str, str]):
+        """Initializes a new LlamdaFunction instance.
+
+        Args:
+            func (Callable): The callable function to be wrapped.
+            description (str): A description of the function for the LLM to use.
+            signature (inspect.Signature): The function's signature.
+            param_descriptions (Dict[str, str]): dictionary mapping parameter names to their descriptions for the LLM.
+        """
+        self.func = func
+        self.description = description
+        self.signature = signature
+        self.param_descriptions = param_descriptions
         
     @property
     def __name__(self):
@@ -33,8 +48,18 @@ class LlamdaFunction:
         return f"LlamdaFunction {self.func.__name__}"
 
     def __call__(self, handle_exceptions: bool = False, **kwargs) -> ToolCallResult:
+        """Calls the wrapped function with the provided keyword arguments.
 
-        # Check if all required parameters are present and of the correct type
+        Args:
+            handle_exceptions (bool, optional): whether to automatically handle exceptions. Defaults to False.
+
+        Raises:
+            ValueError: If a required parameter is missing or of the wrong type and handle_exceptions is False.
+            e: If an exception occurs and handle_exceptions is False.
+
+        Returns:
+            ToolCallResult: The result of the function call, including success status and any errors or exceptions.
+        """
         parameter_error = None
         for name, parameter in self.signature.parameters.items():           
             if is_argument_required(parameter):
@@ -65,6 +90,11 @@ class LlamdaFunction:
                 raise e
     
     def to_schema(self):
+        """Converts the LlamdaFunction instance to a JSON schema representation.
+
+        Returns:
+          Dict: The JSON schema representation of the LlamdaFunction.
+        """
         return {
             "name": self.func.__name__,
             "description": self.description,

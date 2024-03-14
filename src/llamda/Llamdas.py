@@ -1,5 +1,5 @@
 import json
-from pydantic import BaseModel, Field, validator, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Dict, List, Any
 
 from openai.types.chat import ChatCompletionMessage
@@ -47,13 +47,7 @@ class Llamdas(BaseModel):
                     func = self.functions[func_name]
                     try:
                         args:Dict[str, Any] = json.loads(call["function"]["arguments"])
-                        print(f"Args: {args}")
-                        print(f"Function: {func}")
-
-                        print(f"Executing function: {func_name}")
                         result = func(**args, handle_exceptions=self.handle_exceptions)
-
-                        print(f"Function execution completed. Result: {result}")
 
 
                         results[call["id"]] = {
