@@ -6,12 +6,15 @@ authors = ["lumpenspace <lumpensapace@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.11"
 pydantic = "^2.6.3"
 openai = "^1.13.3"
+rich = "^13.7.1"
+prompt-toolkit = "^3.0.47"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"
+ipykernel = "^6.29.5"
 
 [build-system]
 requires = ["poetry-core"]

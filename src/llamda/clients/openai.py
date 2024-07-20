@@ -1,23 +1,27 @@
 from typing import List, Dict, Any
-from .Llamdas import Llamdas
-from .response_types import ExecutionResponse, ParameterError
 import openai
-from openai.types.chat import CompletionCreateParams, ChatCompletionMessage
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionMessage
+
 
 def function_completion(
     llamda_functions: Llamdas,
     messages: List[ChatCompletionMessage],
-    **kwargs : CompletionCreateParams
+    **kwargs: CompletionCreateParams
 ) -> Any:
     # Map the arguments to the OpenAI completion arguments
-    openai_kwargs = kwargs
+    openai_kwargs: dict[str, type[ChatCompletionMessageParam]] = kwargs
 
     # Add the LlamdaFunctions as tools to the completion request
-    tools = llamda_functions.to_openai_tools()
+    tools = llamda_functions.to_schema()
 
     while True:
         # Call the completion function with the mapped arguments
-        response = openai.ChatCompletion.create(**openai_kwargs, messages, tools=tools)
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            **openai_kwargs,
+            messages=messages,
+            tools=tools,
+        )
 
         # Get the first message from the response
         message = response.choices[0].message
