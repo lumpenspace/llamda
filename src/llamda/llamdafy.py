@@ -11,62 +11,70 @@ The decorator will read:
 The decorator will return a @LlamdaFunction object.
 """
 
-import inspect
-from typing import Callable, TypeVar
+from inspect import Parameter, signature
+from types import MappingProxyType
+from typing import Any, Callable, Type, TypeVar, get_type_hints
 
-from llamda.llamda_fn import LlamdaFunction
-from llamda.introspection_tools import (
-    get_docstring_descriptions,
-    strip_meta_from_docstring,
-)
+from docstring_parser import Docstring
+from docstring_parser import parse as parse_docstring
+
+from .llamda_function import LlamdaFunction
+from .utils import console
 
 T = TypeVar("T")
 
 
-def llamdafy(func: Callable[..., T], /, **descriptions: str) -> LlamdaFunction[T]:
+def llamdafy(**descriptions: str):
     """
-    Decorator to make a function into a LlamdaFunction.
+    Decorator to transform a Python function into an LLM function.
     """
 
     def decorator(func: Callable[..., T]) -> LlamdaFunction[T]:
-        signature: inspect.Signature = inspect.signature(func)
+        # Extract function name
+        name = descriptions.get("n  ame", func.__name__)
 
-        # Extract main description from decorator params or docstring
-        description: str | None = descriptions.get(
-            "main", strip_meta_from_docstring(func.__doc__) if func.__doc__ else None
+        # Extract and merge function description
+        main_description: str | None = (
+            descriptions.get("main")
+            or parse_docstring(func.__doc__ or "").short_description
+            or ""
         )
 
-        if not description:
-            raise ValueError(f"Description missing for function '{func.__name__}'")
+        if not main_description:
+            console.log(
+                f"No main description found for function {name}", style="warning"
+            )
 
-        # Extract parameter descriptions from the docstring
-        docstring_description: dict[str, str] = get_docstring_descriptions(
-            func.__doc__ or ""
+        # Extract parameter information
+        params: MappingProxyType[str, Parameter] = signature(func).parameters
+        type_hints: dict[str, Type[Any]] = get_type_hints(func)
+        docstring: Docstring = parse_docstring(func.__doc__ or "")
+
+        parameters: dict[str, Any] = {}
+        for param_name, _ in params.items():
+            # Get description from docstring or descriptions dict
+            param_desc: str | None = next(
+                (p.description for p in docstring.params if p.arg_name == param_name),
+                None,
+            )
+            param_desc = descriptions.get(param_name, param_desc)
+            parameters[param_name] = param_desc or ""
+
+        # Get return type
+        return_type: type | None = type_hints.get("return")
+
+        # Create LlamdaFunction instance
+        llamda_func = LlamdaFunction(
+            name=name,
+            description=main_description,
+            parameters=parameters,
+            return_type=return_type,
+            fn=func,
         )
 
-        # Merge descriptions from arguments and docstring
-        merged_descriptions: dict[str, str] = {**descriptions, **docstring_description}
+        return llamda_func
 
-        # Check if all parameters have descriptions
-        for name in signature.parameters:
-            if name not in merged_descriptions:
-                raise ValueError(
-                    f"Description missing for parameter '{name}' in function '{func.__name__}'"
-                )
+    return decorator
 
-        # Check if all parameters have type annotations
-        for name, parameter in signature.parameters.items():
-            if parameter.annotation == inspect.Parameter.empty:
-                raise ValueError(
-                    f"Type annotation missing for parameter '{name}'\
-                          in function '{func.__name__}'"
-                )
 
-        return LlamdaFunction(
-            func=func,
-            description=description,
-            signature=signature,
-            param_descriptions=merged_descriptions,
-        )
-
-    return decorator(func)
+__all__: list[str] = ["llamdafy"]

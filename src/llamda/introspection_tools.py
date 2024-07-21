@@ -33,20 +33,26 @@ def get_docstring_descriptions(docstring: str | None) -> dict[str, str]:
     return docstring_descriptions
 
 
-def get_type_str(annotation: Type[Any]) -> str:
+def get_type_str(annotation: Type[Any]) -> dict[str, Any] | str:
     """
     Get the type string from the annotation.
     """
     origin: Any | None = get_origin(annotation)
-    if origin is Union:
-        args: tuple[Any, ...] = get_args(annotation)
-        types: list[str] = [get_type_str(arg) for arg in args if arg is not type(None)]
-        if len(types) == 1:
-            return types[0]
-        return ", ".join(types)
-    elif origin is Optional:
+
+    if origin is Optional:
         args: tuple[Any, ...] = get_args(annotation)
         return get_type_str(args[0])
+
+    elif origin is Union:
+        args: tuple[Any, ...] = get_args(annotation)
+        types: list[dict[str, Any] | str | Type[Any]] = [
+            get_type_str(arg) for arg in args if arg is not type(None)
+        ]
+        if len(types) == 1:
+            if isinstance(types[0], str):
+                return types[0]
+            return {"type": types[0]}
+        return {"anyOf": [{"type": get_type_str(t)} for t in types]}
     return annotation.__name__.lower()
 
 

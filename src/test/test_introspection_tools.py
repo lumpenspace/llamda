@@ -24,8 +24,10 @@ def test_strip_meta_from_docstring() -> None:
         @param date: The date for which to retrieve the weather information.
         @return: The weather forecast as a string.
     """
-    expected_output = "Retrieve the weather information for a given location and date.\n\
-        Returns the weather forecast as a string."
+    expected_output = (
+        "Retrieve the weather information for a given location and date.\n"
+        "Returns the weather forecast as a string."
+    )
     assert strip_meta_from_docstring(docstring) == expected_output
 
 

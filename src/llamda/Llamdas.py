@@ -11,8 +11,8 @@ from openai.types.chat import ChatCompletionMessage
 from pydantic import BaseModel, Field, field_validator
 from pydantic.errors import PydanticInvalidForJsonSchema, PydanticUserError
 
-from llamda.llamda_fn import LlamdaFunction
-from llamda.response_types import ExecutionResponse, ToolCallResult
+from .llamda_function import LlamdaFunction
+from .response_types import ExecutionResponse, ToolCallResult
 
 T = TypeVar("T")
 

@@ -14,3 +14,6 @@ def live(shell: Console) -> Live:
     Create a live console.
     """
     return Live(console=shell)
+
+
+__all__ = ["console", "error_console", "live"]

@@ -1,20 +1,41 @@
-import pytest
+"""
+Test the @llamdafy decorator.
+"""
+
 from typing import Optional
+
+import pytest
+
 from llamda import llamdafy
-from .function_fixtures import get_weather, get_weather_decorated
+
+from .function_fixtures import get_weather
 
 
-@llamdafy
-def get_weather_with_param_annotations(location: str, date: Optional[str]) -> str:
-    """
-    Retrieve the weather information for a given location and date.
-    Returns the weather forecast as a string.
 
-    @param location: The location for which to retrieve the weather information.
-    @param date: The date for which to retrieve the weather information.
-    @return: The weather forecast as a string.
-    """
-    return get_weather(location, date)
+def test_schema_generation():
+    @llamdafy()
+    def get_weather_with_param_annotations(location: str, date: Optional[str]) -> str:
+        """
+        Retrieve the weather information for a given location and date.
+        Returns the weather forecast as a string.
+
+        @param location: The location for which to retrieve the weather information.
+        @param date: The date for which to retrieve the weather information.
+        @return: The weather forecast as a string.
+        """
+
+        return get_weather(location, date)
+
+    schema = get_weather_with_param_annotations.()
+    assert schema["name"] == "get_weather_with_param_annotations"
+    assert (
+        schema["description"]
+        == "Retrieve the weather information for a given location and date.\nReturns the weather forecast as a string."
+    )
+    assert (
+        schema["parameters"]["properties"]["location"]["description"]
+        == "The location for which to retrieve the weather information."
+    )
 
 
 def test_llamda_decorator() -> None:
@@ -22,14 +43,14 @@ def test_llamda_decorator() -> None:
     Test the @llamdafy decorator.
     """
     # Test the decorated function
-    result = get_weather_decorated(location="London", date="2023-06-01")
+    result = get_weather(location="London", date="2023-06-01")
 
-    assert result.success
+    assert result
     assert result == "Rainy on 2023-06-01"
 
     # Test the schema generation
-    schema = get_weather_decorated.to_schema()
-    assert schema["name"] == "get_weather_decorated"
+    schema = get_weather.to_schema()
+    assert schema["name"] == "get_weather"
     assert (
         schema["description"]
         == "Retrieve the weather information for a given location and date."

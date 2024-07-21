@@ -6,7 +6,7 @@ from .llamdafy import llamdafy
 from .llamdas import Llamdas
 from .response_types import ToolCallResult, ExecutionResponseItem, ExecutionResponse
 from .introspection_tools import __all__ as introspection_tools
-from .llamda_fn import LlamdaFunction
+from .llamda_function import LlamdaFunction
 
 __all__: list[str] = [
     "llamdafy",

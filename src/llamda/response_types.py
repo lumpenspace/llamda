@@ -39,7 +39,7 @@ class ToolCallResult(BaseModel, Generic[T]):
 
     result: Optional[T] = Field(...)
     success: bool = Field(...)
-    parameter_error: Optional[ParameterError] = Field(default={})
+    parameter_errors: Optional[list[ParameterError]] = Field(default=[])
     exception: Optional[str] = Field(default=None)
 
     def __str__(self) -> str:
