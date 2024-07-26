@@ -1,7 +1,7 @@
 from typing import Dict, List, Union, Optional, get_args, get_origin
 from pydantic import BaseModel, Field
 
-from src.llamda_function.process_fields import process_field, process_fields
+from llamda_function.process_fields import process_field, process_fields
 
 
 def test_process_field_optional():
