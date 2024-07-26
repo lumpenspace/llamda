@@ -22,9 +22,8 @@ def test_llamda_function_creation():
         call_func=sample_func,
     )
 
-    assert func.__name__ == "SampleFunction"
-    assert func.__doc__ == "A sample function that repeats a string"
-    assert func.get_type() == str
+    assert func.name == "SampleFunction"
+    assert func.description == "A sample function that repeats a string"
 
     result = func.run(a=3, b="hello")
     assert result == "hello repeated 3 times"
@@ -56,7 +55,7 @@ def test_llamda_function_schema():
     assert "properties" in schema
 
     properties = schema["properties"]
-    assert properties["a"]["type"] == "int"
+    assert properties["a"]["type"] == "integer"
     assert properties["b"]["type"] == "array"
     assert properties["b"]["items"]["type"] == "string"
     assert properties["c"]["type"] == "object"

@@ -17,6 +17,8 @@ docstring-parser = "^0.16"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"
 ipykernel = "^6.29.5"
+sphinx = "^7.4.7"
+myst-parser = "^3.0.1"
 
 [build-system]
 requires = ["poetry-core"]

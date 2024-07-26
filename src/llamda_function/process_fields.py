@@ -1,129 +1,103 @@
-from typing import Any, Dict, List, Union, TypedDict, TypeVar, get_args, get_origin
-from pydantic import BaseModel, PydanticUndefinedAnnotation, TypeAdapter
+from ast import List
+from typing import Any, Dict, Optional, Union, get_args, get_origin
+from pydantic import BaseModel, Field, ValidationError, create_model
 from pydantic.fields import FieldInfo
+from pydantic_core import SchemaError
+
+JsonDict = Dict[str, Any]
 
 
-R = TypeVar("R")
-
-
-class LlamdaField(TypedDict, total=False):
+def process_field(
+    field_type: Any, field_info: Union[JsonDict, FieldInfo]
+) -> tuple[Any, JsonDict]:
     """
-    Recursive field in a Llamda function.
-    """
-
-    description: str
-    default: Any
-    nested: Dict[str, "LlamdaField"]
-    error: str
-
-
-def process_field(field_type: Any, field_info: LlamdaField) -> tuple[Any, LlamdaField]:
-    """
-    Process a field type and info, reducing it to a nested object of type:
-    (type, LlamdaField)
-    """
-    llamda_field: LlamdaField = field_info.copy()
-
-    origin = get_origin(field_type)
-    args = get_args(field_type)
-
-    if origin is Union:
-        # Handle Union types, including Optional
-        non_none_args = [arg for arg in args if arg is not type(None)]
-        if len(non_none_args) == 1:
-            return process_field(non_none_args[0], llamda_field)
-        else:
-            # For complex unions, use TypeAdapter to generate schema
-            return _handle_complex_type(field_type, llamda_field)
-
-    if origin is list:
-        if len(args) == 1:
-            item_type, item_llamda_field = process_field(args[0], {})
-            llamda_field["nested"] = {"items": item_llamda_field}
-            return (List[item_type], llamda_field)
-        else:
-            return _handle_complex_type(field_type, llamda_field)
-
-    if origin is dict:
-        if len(args) == 2 and args[0] is str:
-            value_type, value_llamda_field = process_field(args[1], {})
-            llamda_field["nested"] = {"values": value_llamda_field}
-            return (Dict[str, value_type], llamda_field)
-        else:
-            return _handle_complex_type(field_type, llamda_field)
-
-    if isinstance(field_type, type) and issubclass(field_type, BaseModel):
-        # Convert Pydantic models to nested object schemas
-        return _handle_complex_type(field_type, llamda_field)
-
-    # Handle basic types
-    if field_type in (str, int, float, bool):
-        return (field_type, llamda_field)
-
-    # Use TypeAdapter for other types
-    return _handle_complex_type(field_type, llamda_field)
-
-
-def _handle_complex_type(
-    field_type: Any, llamda_field: LlamdaField
-) -> tuple[Any, LlamdaField]:
-    """
-    Handle complex types using Pydantic's TypeAdapter.
+    Process a field type and info, using Pydantic's model_json_schema for schema generation.
     """
     try:
-        type_adapter = TypeAdapter(field_type)
-        json_schema = type_adapter.json_schema()
-        llamda_field["nested"] = _convert_json_schema_to_llamda_field(json_schema)
-        return (field_type, llamda_field)
-    except PydanticUndefinedAnnotation:
-        # If the type is not fully defined, return as is
-        return (field_type, llamda_field)
-    except Exception as e:
-        # If TypeAdapter fails for any other reason, default to Any
-        llamda_field["error"] = str(e)
-        return (Any, llamda_field)
+        if isinstance(field_type, type) and issubclass(field_type, BaseModel):
+            # Handle nested Pydantic models
+            nested_schema = field_type.model_json_schema()
+            field_schema = {
+                "type": "object",
+                "properties": nested_schema.get("properties", {}),
+                "required": nested_schema.get("required", []),
+            }
+        else:
+            # Create a temporary model with the field
+            if isinstance(field_info, FieldInfo):
+                temp_field = field_info
+            else:
+                temp_field = Field(**field_info)
+
+            TempModel = create_model("TempModel", field=(field_type, temp_field))
+
+            # Get the JSON schema for the entire model
+            full_schema = TempModel.model_json_schema()
+
+            # Extract the schema for our specific field
+            field_schema = full_schema["properties"]["field"]
+
+        # Handle Optional types
+        origin = get_origin(field_type)
+        if origin is Union:
+            args = get_args(field_type)
+            if type(None) in args:
+                # This is an Optional type
+                non_none_type = next(arg for arg in args if arg is not type(None))
+                if non_none_type is float:
+                    field_schema["type"] = "number"
+                elif non_none_type is int:
+                    field_schema["type"] = "integer"
+                elif non_none_type is str:
+                    field_schema["type"] = "string"
+                elif isinstance(non_none_type, type) and issubclass(
+                    non_none_type, BaseModel
+                ):
+                    field_schema["type"] = "object"
+                field_schema["nullable"] = True
+
+        # Ensure 'type' is always set
+        if "type" not in field_schema:
+            if isinstance(field_type, type) and issubclass(field_type, BaseModel):
+                field_schema["type"] = "object"
+            elif field_type is int:
+                field_schema["type"] = "integer"
+            elif field_type is float:
+                field_schema["type"] = "number"
+            elif field_type is str:
+                field_schema["type"] = "string"
+            elif field_type is bool:
+                field_schema["type"] = "boolean"
+            elif field_type is list or field_type is List:
+                field_schema["type"] = "array"
+            elif field_type is dict or field_type is Dict:
+                field_schema["type"] = "object"
+            else:
+                field_schema["type"] = "any"
+
+        # Merge field_info with the generated schema
+        if isinstance(field_info, dict):
+            for key, value in field_info.items():
+                if key not in field_schema or field_schema[key] is None:
+                    field_schema[key] = value
+
+        return field_type, field_schema
+    except (SchemaError, ValidationError) as e:
+        print(f"Error processing field: {e}")
+        return Any, {"type": "any", "error": str(e)}
+
+        # If schema generation fails, return Any type a
 
 
-def _convert_json_schema_to_llamda_field(
-    json_schema: Dict[str, Any]
-) -> Dict[str, LlamdaField]:
+def process_fields(fields: Dict[str, Any]) -> Dict[str, tuple[Any, JsonDict]]:
     """
-    Convert a JSON schema to a nested LlamdaField structure.
+    Process all fields in a model, using Pydantic for complex types.
     """
-    result: Dict[str, LlamdaField] = {}
-    if "properties" in json_schema:
-        for prop, prop_schema in json_schema["properties"].items():
-            result[prop] = _json_schema_to_llamda_field(prop_schema)
-    return result
-
-
-def _json_schema_to_llamda_field(schema: Dict[str, Any]) -> LlamdaField:
-    """
-    Convert a single property JSON schema to a LlamdaField.
-    """
-    llamda_field: LlamdaField = {}
-    if "description" in schema:
-        llamda_field["description"] = schema["description"]
-    if "default" in schema:
-        llamda_field["default"] = schema["default"]
-    if "properties" in schema:
-        llamda_field["nested"] = _convert_json_schema_to_llamda_field(schema)
-    return llamda_field
-
-
-def process_fields(fields: Dict[str, Any]) -> Dict[str, tuple[Any, LlamdaField]]:
-    """
-    Process all fields in a model.
-    """
-    processed_fields: Dict[str, tuple[Any, LlamdaField]] = {}
+    processed_fields = {}
     for field_name, field_value in fields.items():
         if isinstance(field_value, FieldInfo):
             field_type = field_value.annotation
-            field_info: LlamdaField = {}
-            if field_value.description:
-                field_info["description"] = field_value.description
-            if field_value.default is not None:
-                field_info["default"] = field_value.default
+            field_info = field_value
         elif isinstance(field_value, tuple):
             field_type, field_info = field_value
         else:
@@ -132,5 +106,28 @@ def process_fields(fields: Dict[str, Any]) -> Dict[str, tuple[Any, LlamdaField]]
             )
 
         processed_type, processed_info = process_field(field_type, field_info)
+
+        # Ensure 'type' is set for nested Pydantic models
+        if isinstance(processed_type, type) and issubclass(processed_type, BaseModel):
+            processed_info["type"] = "object"
+
         processed_fields[field_name] = (processed_type, processed_info)
+
     return processed_fields
+
+
+def create_model_from_fields(
+    name: str, fields: Dict[str, tuple[Any, JsonDict]]
+) -> type[BaseModel]:
+    """
+    Create a Pydantic model from a dictionary of fields.
+    """
+    model_fields = {}
+    for field_name, (field_type, field_info) in fields.items():
+        default = field_info.get("default", ...)
+        if default is None:
+            field_type = Optional[field_type]
+            field_info["default"] = None
+        model_fields[field_name] = (field_type, Field(**field_info))
+
+    return create_model(name, **model_fields)

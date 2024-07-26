@@ -1,11 +1,8 @@
-from ast import List
-from typing import Any, Callable, Dict, Generic, Self, Type, TypeVar
-import typing
-from venv import logger
+from typing import Any, Callable, Dict, Generic, TypeVar
 
-from pydantic import BaseModel, Field, create_model, ConfigDict
+from pydantic import BaseModel
 
-from .process_fields import LlamdaField, process_fields
+from .process_fields import create_model_from_fields, process_fields
 
 R = TypeVar("R")
 A = TypeVar("A", bound=list[Any])
@@ -13,31 +10,13 @@ A = TypeVar("A", bound=list[Any])
 
 class LlamdaFunction(BaseModel, Generic[R]):
     """
-    Base class for Llamda functions.
+    A function that can be called from the Llamda API.
     """
 
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-    )
-
-    @classmethod
-    def get_type(cls) -> Type[R]:
-        """
-        Get the return type of the Llamda function.
-        """
-        return typing.get_type_hints(cls.run)["return"]
-
-    @classmethod
-    def run(cls, *args: Any, **kwargs: Any) -> R:
-        """
-        Run the Llamda function.
-        """
-        instance: Self = cls(**kwargs)
-        return instance._run(*args, **kwargs)
-
-    def _run(self) -> R:
-        # should be overridden by subclass
-        raise NotImplementedError("run is not implemented")
+    name: str
+    description: str
+    parameter_model: type[BaseModel]
+    call_func: Callable[..., Any]
 
     @classmethod
     def create(
@@ -45,45 +24,66 @@ class LlamdaFunction(BaseModel, Generic[R]):
         name: str,
         fields: Dict[str, Any],
         description: str,
-        call_func: Callable[..., R],
-    ) -> Type[Self]:
-        """Create a new Llamda function."""
-
-        processed_fields: Dict[str, tuple[Any, LlamdaField]] = process_fields(fields)
-        model_fields: Dict[str, Any] = {}
-
-        for field_name, (field_type, field_info) in processed_fields.items():
-            model_fields[field_name] = (field_type, Field(**field_info))
-
-        logger.warning("Creating model %s with fields %s", name, model_fields)
-        model: type[Self] = create_model(
-            name, __base__=LlamdaFunction[R], **model_fields
+        call_func: Callable[..., Any],
+    ) -> "LlamdaFunction[R]":
+        """
+        Create a new LlamdaFunction from a function.
+        """
+        processed_fields = process_fields(fields)
+        parameter_model = create_model_from_fields(
+            f"{name}Parameters", processed_fields
         )
-        model.__doc__ = description
-        model.run = call_func
-        return model
 
-    @classmethod
-    def to_schema(
-        cls, by_alias: bool = True, ref_template: str = "#/$defs/{model}"
-    ) -> Dict[str, Any]:
-        """
-        Convert the Llamda function to a JSON schema.
-        """
-        schema = cls.model_json_schema(by_alias=by_alias, ref_template=ref_template)
-        schema["description"] = cls.__doc__
+        return cls(
+            name=name,
+            description=description,
+            parameter_model=parameter_model,
+            call_func=call_func,
+        )
 
-        # Convert 'type' field for each property
-        for _, details in schema.get("properties", {}).items():
-            if details.get("type") == "number":
-                details["type"] = "float"
-            elif details.get("type") == "integer":
-                details["type"] = "int"
-            elif details.get("type") == "array":
-                if "items" in details and "type" in details["items"]:
-                    if details["items"]["type"] == "number":
-                        details["items"]["type"] = "float"
-                    elif details["items"]["type"] == "integer":
-                        details["items"]["type"] = "int"
+    def run(self, **kwargs: Any) -> Any:
+        """
+        Run the LlamdaFunction with the given parameters.
+        """
+        # Validate inputs using the parameter_model
+        validated_params = self.parameter_model(**kwargs)
+        # Call the actual function with validated parameters
+        return self.call_func(**validated_params.model_dump())
+
+    def to_schema(self) -> dict[str, Any]:
+        """
+        Get the JSON schema for the LlamdaFunction.
+        """
+        schema: dict[str, Any] = {}
+        schema["title"] = self.name
+        schema["description"] = self.description
+        model_schema = self.parameter_model.model_json_schema()
+        schema["required"] = model_schema.get("required", [])
+        schema["properties"] = self._process_properties(model_schema["properties"])
+
+        # Add definitions if present
+        if "$defs" in model_schema:
+            schema["$defs"] = model_schema["$defs"]
 
         return schema
+
+    def _process_properties(self, properties: dict[str, Any]) -> dict[str, Any]:
+        """
+        Process properties to include nested Pydantic model schemas.
+        """
+        processed_properties = {}
+        for prop_name, prop_schema in properties.items():
+            if "$ref" in prop_schema:
+                # This is a reference to a nested Pydantic model
+                ref_name = prop_schema["$ref"].split("/")[-1]
+                nested_schema = self.parameter_model.model_json_schema()["$defs"][
+                    ref_name
+                ]
+                processed_properties[prop_name] = {
+                    "type": "object",
+                    "properties": self._process_properties(nested_schema["properties"]),
+                    "required": nested_schema.get("required", []),
+                }
+            else:
+                processed_properties[prop_name] = prop_schema
+        return processed_properties

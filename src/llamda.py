@@ -1,9 +1,10 @@
-"""
-Llambda is a library for creating Llamda functions.
-"""
+from typing import Dict, Any, Callable, TypeVar, ParamSpec, cast
+from inspect import signature, Parameter
+from .llamda_function import LlamdaFunction
+from pydantic import Field
 
-from typing import Dict, Any, Callable, Type
-from .llamda_function import LlamdaFunction, R
+R = TypeVar("R")
+P = ParamSpec("P")
 
 
 class Llamda:
@@ -18,25 +19,37 @@ class Llamda:
         self,
         name: str | None = None,
         description: str | None = None,
-        fields: Dict[str, Any] | None = None,
-    ) -> Callable[..., Type[LlamdaFunction[Any]]]:
+    ) -> Callable[[Callable[P, R]], LlamdaFunction[R]]:
         """
         Decorator for creating Llamda functions.
         """
 
-        def decorator(func: Callable[..., R]) -> Type[LlamdaFunction[R]]:
+        def decorator(func: Callable[P, R]) -> LlamdaFunction[R]:
             func_name: str = name or func.__name__
-            llamda_func: Type[LlamdaFunction[R]] = LlamdaFunction.create(
-                func_name, fields or {}, description or func.__doc__ or "", func
+            func_description: str = description or func.__doc__ or ""
+
+            # Extract fields from function signature
+            fields: Dict[str, Any] = {}
+            for param_name, param in signature(func).parameters.items():
+                if param.annotation != Parameter.empty:
+                    field_info = {}
+                    if param.default != Parameter.empty:
+                        field_info["default"] = param.default
+                    fields[param_name] = (param.annotation, Field(**field_info))
+
+            llamda_func: LlamdaFunction[R] = LlamdaFunction.create(
+                func_name, fields, func_description, func
             )
 
             self._tools[func_name] = llamda_func
-            return llamda_func
+            # This cast is necessary to ensure that the return type is LlamdaFunction[R]
+            # pylance disable=unnecessary-cast
+            return cast(LlamdaFunction[R], llamda_func)
 
         return decorator
 
     @property
-    def tools(self) -> Dict[str, Type[LlamdaFunction[Any]]]:
+    def tools(self) -> Dict[str, LlamdaFunction[Any]]:
         """
         Get the tools.
         """
@@ -44,14 +57,23 @@ class Llamda:
 
 
 def create_llamda_function(
-    func: Callable[..., R],
+    func: Callable[P, R],
     name: str | None = None,
     description: str | None = None,
-    fields: Dict[str, Any] | None = None,
-) -> Type[LlamdaFunction[R]]:
+) -> LlamdaFunction[R]:
     """
     Create a Llamda function.
     """
-    return LlamdaFunction.create(
-        name or func.__name__, fields or {}, description or func.__doc__ or "", func
-    )
+    func_name: str = name or func.__name__
+    func_description: str = description or func.__doc__ or ""
+
+    # Extract fields from function signature
+    fields: Dict[str, Any] = {}
+    for param_name, param in signature(func).parameters.items():
+        if param.annotation != Parameter.empty:
+            field_info = {}
+            if param.default != Parameter.empty:
+                field_info["default"] = param.default
+            fields[param_name] = (param.annotation, Field(**field_info))
+
+    return LlamdaFunction.create(func_name, fields, func_description, func)
