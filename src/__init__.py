@@ -1,9 +1,12 @@
 """
-LLamda is a Python package that allows you turn any function into an
-LLM tool with a simple decorator.
+Llamda is a Python library for transforming Python functions into LLM function calls.
 """
 
-from llamda.llamda_function import LlamdaFunction
-from llamda.llamdafy import llamdafy
+from .llamda import Llamda
+from .llamda_function import __all__ as llamda_fn
 
-__all__: list[str] = ["LlamdaFunction", "llamdafy"]
+
+__all__: list[str] = [
+    "Llamda",
+    "llamda_fn",
+]

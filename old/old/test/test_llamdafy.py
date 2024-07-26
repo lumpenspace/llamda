@@ -1,8 +1,10 @@
+# pylint: disable=missing-docstring
+
 """
 Test the @llamdafy decorator.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 import pytest
 
@@ -11,23 +13,24 @@ from llamda import llamdafy
 from .function_fixtures import get_weather
 
 
+@llamdafy()
+def llamdafied_get_weather(location: str, date: Optional[str]) -> str:
+    """
+    Retrieve the weather information for a given location and date.
+    Returns the weather forecast as a string.
+
+    @param location: The location for which to retrieve the weather information.
+    @param date: The date for which to retrieve the weather information.
+    @return: The weather forecast as a string.
+    """
+
+    return get_weather(location, date)
+
 
 def test_schema_generation():
-    @llamdafy()
-    def get_weather_with_param_annotations(location: str, date: Optional[str]) -> str:
-        """
-        Retrieve the weather information for a given location and date.
-        Returns the weather forecast as a string.
 
-        @param location: The location for which to retrieve the weather information.
-        @param date: The date for which to retrieve the weather information.
-        @return: The weather forecast as a string.
-        """
-
-        return get_weather(location, date)
-
-    schema = get_weather_with_param_annotations.()
-    assert schema["name"] == "get_weather_with_param_annotations"
+    schema = llamdafied_get_weather.to_json_schema()
+    assert schema["name"] == "llamdafied_get_weather"
     assert (
         schema["description"]
         == "Retrieve the weather information for a given location and date.\nReturns the weather forecast as a string."
@@ -49,8 +52,8 @@ def test_llamda_decorator() -> None:
     assert result == "Rainy on 2023-06-01"
 
     # Test the schema generation
-    schema = get_weather.to_schema()
-    assert schema["name"] == "get_weather"
+    schema: dict[str, Any] = llamdafied_get_weather.to_json_schema()
+    assert schema["name"] == "llamdafied_get_weather"
     assert (
         schema["description"]
         == "Retrieve the weather information for a given location and date."
@@ -71,15 +74,13 @@ def test_llamda_decorator() -> None:
 def test_llamda_decorator_with_docstring_params():
 
     # Test the decorated function
-    result = get_weather_with_param_annotations(
-        location="Philadelphia", date="2023-06-01"
-    )
+    result = llamdafied_get_weather(location="Philadelphia", date="2023-06-01")
     assert result.success
     assert result.result == "Sunny on 2023-06-01"
 
     # Test the schema generation
-    schema = get_weather_with_param_annotations.to_schema()
-    assert schema["name"] == "get_weather_with_param_annotations"
+    schema: dict[str, Any] = llamdafied_get_weather.to_json_schema()
+    assert schema["name"] == "llamdafied_get_weather"
     assert (
         schema["description"]
         == "Retrieve the weather information for a given location and date.\nReturns the weather forecast as a string."
@@ -105,6 +106,8 @@ def test_llamda_decorator_missing_description():
         def get_weather_missing_description(location: str, date: Optional[str]) -> str:
             return get_weather(location, date)
 
+        get_weather_missing_description.to_json_schema()
+
 
 def test_llamda_decorator_missing_param_description():
     with pytest.raises(
@@ -117,6 +120,8 @@ def test_llamda_decorator_missing_param_description():
             location: str, date: Optional[str]
         ) -> str:
             return get_weather(location, date)
+
+        get_weather_missing_param_description.to_json_schema()
 
 
 def test_llamda_decorator_missing_type_annotation():
@@ -132,3 +137,5 @@ def test_llamda_decorator_missing_type_annotation():
         )
         def get_weather_missing_type_annotation(location, date: Optional[str]) -> str:
             return get_weather(location, date)
+
+        get_weather_missing_type_annotation.to_json_schema()

@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "llamda"
+name = "llamda-fn"
 version = "0.1.0"
 description = ""
 authors = ["lumpenspace <lumpensapace@gmail.com>"]
@@ -7,7 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-pydantic = "^2.6.3"
+pydantic = "^2.8"
 openai = "^1.13.3"
 rich = "^13.7.1"
 prompt-toolkit = "^3.0.47"

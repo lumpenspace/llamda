@@ -8,7 +8,7 @@ from typing import Optional
 def get_weather(location: str, date: Optional[str]) -> str:
     """
     Retrieve the weather information for a given location and date.
-    Returns trhe weather forecast as a string.
+    Returns the weather forecast as a string.
     """
     on_date = f" on {date}" if date else ""
     if location == "London":

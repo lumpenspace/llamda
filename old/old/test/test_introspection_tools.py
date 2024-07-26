@@ -4,7 +4,7 @@ Test introspection tools for the Llamda library.
 
 from typing import Optional, Union
 
-from llamda.introspection_tools import (
+from old.old.introspection_tools import (
     get_docstring_descriptions,
     get_type_str,
     is_argument_required,
