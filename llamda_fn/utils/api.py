@@ -1,3 +1,5 @@
+"""Module to handle the LLM APIs."""
+
 from os import environ
 from typing import Any, Optional
 

@@ -1,5 +1,5 @@
 import json
-from typing import Any, Callable, List, Optional, Sequence
+from typing import Any, Callable, List, Optional, Self, Sequence, TypedDict, NotRequired
 
 from openai import OpenAI
 from openai.types.chat import (
@@ -9,48 +9,73 @@ from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionToolParam,
 )
+from openai.types.model import Model as OpenAIModel
 from pydantic import BaseModel, Field, model_validator
 
 from llamda_fn.functions import LlamdaFunctions
 from llamda_fn.utils import LlmApiConfig
 
 
+Request = TypedDict(
+    "Request",
+    {
+        "model": str,
+        "messages": List[ChatCompletionMessageParam],
+        "tools": NotRequired[List[ChatCompletionToolParam]],
+    },
+)
+
+
 class Llamda(BaseModel):
     """
-    Llamda class to create, decorate and run Llamda functions.
+    Llamda class to create, decorate, and run Llamda functions.
     """
 
-    llamda_functions: LlamdaFunctions = Field(default_factory=LlamdaFunctions)
-    llm_api: OpenAI = Field(...)
-    llm_api_config: dict[str, Any] = Field(default_factory=dict)
+    llamda_functions: LlamdaFunctions = Field(..., default_factory=LlamdaFunctions)
+    api: Optional[OpenAI]
+    api_config: dict[str, Any] = Field(..., default_factory=dict)
     retry: int = Field(default=3)
     llm_name: str = Field(default="gpt-4-0613")
 
     @model_validator(mode="before")
-    def model_validator(self, values: dict[str, Any]) -> dict[str, Any]:
+    @classmethod
+    def class_validator(cls, data: dict[str, Any]) -> dict[str, Any]:
         """
         Validate the model and create the OpenAI client if needed.
         """
-        llm_api = values.get("llm_api", None)
-        if not llm_api:
-            llm_api: OpenAI = LlmApiConfig(**llm_api).create_openai_client()
+        api = data.get("api")
+        api_config = data.get("api_config") or {}
+        print(api_config, api)
+        if not api:
+            api = LlmApiConfig(**api_config).create_openai_client()
+            if not api:
+                raise ValueError("Unable to create OpenAI client.")
 
-        llm_name: Any | None = values.get("llm_name")
-        if isinstance(values["llm_api"], OpenAI) and llm_name:
-            available_models = list(values["llm_api"].models.list())
+        llm_name: str = data.get("llm_name") or "gpt-4o"
+        if llm_name and api:
+            available_models: list[OpenAIModel] = list(api.models.list())
             model_ids = [model.id for model in available_models]
             if llm_name not in model_ids:
                 raise ValueError(
                     f"Model '{llm_name}' is not available. "
                     f"Available models: {', '.join(model_ids)}"
                 )
+        else:
+            raise ValueError("No LLM API client or LLM name provided.")
 
-        return {
-            "llamda_functions": LlamdaFunctions(),
-            "llm_api": llm_api,
-            "retry": values.get("retry"),
-            "llm_name": values.get("llm_name"),
-        }
+        data["api"] = api
+        return data
+
+    @model_validator(mode="after")
+    def instance_validator(self) -> Self:
+        """
+        Validate the model and create the OpenAI client if needed.
+        """
+        if not self.api:
+            raise ValueError("No LLM API client provided.")
+        if not self.llamda_functions:
+            self.llamda_functions = LlamdaFunctions()
+        return self
 
     class Config:
         """
@@ -58,11 +83,6 @@ class Llamda(BaseModel):
         """
 
         arbitrary_types_allowed = True
-
-    def __init__(self, **data: Any) -> None:
-        super().__init__(**data)
-        self.llamda_functions = self.llamda_functions or LlamdaFunctions()
-        self.llm_api = self.llm_api
 
     def llamdafy(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
         """
@@ -72,7 +92,7 @@ class Llamda(BaseModel):
 
     def run(
         self,
-        messages: list[ChatCompletionMessageParam],
+        messages: List[ChatCompletionMessageParam],
         function_names: Optional[List[str]] = None,
     ) -> str:
         """
@@ -82,12 +102,15 @@ class Llamda(BaseModel):
             function_names
         )
 
+        request: dict[str, Any] = {
+            "model": self.llm_name,
+            "messages": messages,
+        }
+        if tools and len(tools) > 0:
+            request["tools"] = tools
+
         for _ in range(self.retry + 1):
-            response: ChatCompletion = self.llm_api.chat.completions.create(
-                model=self.llm_name,
-                messages=messages,
-                tools=tools,
-            )
+            response: ChatCompletion = self.api.chat.completions.create(**request)
             assistant_message: ChatCompletionMessage = response.choices[0].message
             if assistant_message.tool_calls:
                 for tool_call in assistant_message.tool_calls:

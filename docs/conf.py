@@ -16,6 +16,9 @@ author = "lumpenspace"
 extensions = [
     "myst_parser",
     "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx-jsonschema",
+    "sphinx_markdown_builder",
 ]
 
 source_suffix = {
