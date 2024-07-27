@@ -1,0 +1,11 @@
+[MASTER]
+ignore-patterns=
+
+[MESSAGES CONTROL]
+disable=
+
+[BASIC]
+no-docstring-rgx=^test_.*$
+
+[FORMAT]
+max-line-length=100
