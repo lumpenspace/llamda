@@ -1,11 +1,8 @@
 [MASTER]
-ignore-patterns=
+ignore-patterns=.*?_test.py
 
 [MESSAGES CONTROL]
-disable=
-
-[BASIC]
-no-docstring-rgx=^test_.*$
+disable=no-docstrings
 
 [FORMAT]
 max-line-length=100

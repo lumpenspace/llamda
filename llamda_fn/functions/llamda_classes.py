@@ -1,10 +1,14 @@
 from typing import Any, Callable, Dict, Generic, TypeVar
 from pydantic import BaseModel, Field, create_model, ConfigDict
 
+from llamda_fn.utils.api import ToolParam
+
 R = TypeVar("R")
 
 
 class LlamdaBase(BaseModel, Generic[R]):
+    """The base class for Llamda functions."""
+
     name: str
     description: str
     call_func: Callable[..., Any]
@@ -19,8 +23,26 @@ class LlamdaBase(BaseModel, Generic[R]):
         """Get the JSON schema for the Llamda function."""
         raise NotImplementedError
 
+    def to_tool_schema(self) -> ToolParam:
+        """Get the JSON schema for the LlamdaPydantic."""
+        schema = self.to_schema()
+        return {
+            "type": "function",
+            "function": {
+                "name": schema["title"],
+                "description": schema["description"],
+                "parameters": {
+                    "type": "object",
+                    "properties": schema["properties"],
+                    "required": schema["required"],
+                },
+            },
+        }
+
 
 class LlamdaFunction(LlamdaBase[R]):
+    """A Llamda function that uses a simple function model as the input."""
+
     parameter_model: type[BaseModel]
 
     @classmethod
@@ -62,6 +84,8 @@ class LlamdaFunction(LlamdaBase[R]):
 
 
 class LlamdaPydantic(LlamdaBase[R]):
+    """A Llamda function that uses a Pydantic model as the input."""
+
     model: type[BaseModel]
 
     @classmethod
@@ -91,3 +115,19 @@ class LlamdaPydantic(LlamdaBase[R]):
         schema["title"] = self.name
         schema["description"] = self.description
         return schema
+
+    def to_tool_schema(self) -> ToolParam:
+        """Get the tool schema for the LlamdaPydantic."""
+        schema = self.to_schema()
+        return {
+            "type": "function",
+            "function": {
+                "name": schema["title"],
+                "description": schema["description"],
+                "parameters": {
+                    "type": "object",
+                    "properties": schema["properties"],
+                    "required": schema.get("required", []),
+                },
+            },
+        }

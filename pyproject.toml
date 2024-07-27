@@ -13,6 +13,7 @@ rich = "^13.7.1"
 prompt-toolkit = "^3.0.47"
 pydantic-settings = "^2.3.4"
 docstring-parser = "^0.16"
+python-dotenv = "^1.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"

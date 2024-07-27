@@ -1,9 +1,20 @@
 import json
+from inspect import Parameter, isclass, signature
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    TypeVar,
+    ParamSpec,
+    Union,
+    Sequence,
+    Iterator,
+)
 
-from inspect import Parameter, signature
-from typing import Any, Callable, Dict, List, Optional, TypeVar, ParamSpec, Union
 from pydantic import BaseModel, ValidationError
-from openai.types.chat.chat_completion_tool_param import ChatCompletionToolParam
+from llamda_fn.utils.api import ToolCall, ToolParam
 from .llamda_classes import LlamdaFunction, LlamdaPydantic
 
 R = TypeVar("R")
@@ -11,49 +22,43 @@ P = ParamSpec("P")
 
 
 class LlamdaFunctions:
-    """
-    Main class, produces a decorator for creating Llamda functions and manages their execution.
-    """
-
     def __init__(self) -> None:
         self._tools: Dict[str, Union[LlamdaFunction[Any], LlamdaPydantic[Any]]] = {}
 
+    @property
+    def tools(self) -> Dict[str, Union[LlamdaFunction[Any], LlamdaPydantic[Any]]]:
+        return self._tools
+
     def llamdafy(
         self,
-        name: str | None = None,
-        description: str | None = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> Callable[[Callable[P, R]], Union[LlamdaFunction[R], LlamdaPydantic[R]]]:
-        """
-        Decorator for creating Llamda functions.
-        """
-
         def decorator(
             func: Callable[P, R]
         ) -> Union[LlamdaFunction[R], LlamdaPydantic[R]]:
             func_name: str = name or func.__name__
             func_description: str = description or func.__doc__ or ""
 
-            # Check if the function is expecting a Pydantic model
             sig = signature(func)
             if len(sig.parameters) == 1:
                 param = next(iter(sig.parameters.values()))
-                if issubclass(param.annotation, BaseModel):
+                if isclass(param.annotation) and issubclass(
+                    param.annotation, BaseModel
+                ):
                     llamda_func = LlamdaPydantic.create(
                         func_name, param.annotation, func_description, func
                     )
                     self._tools[func_name] = llamda_func
                     return llamda_func
 
-            # If not a Pydantic model, treat it as a regular function
-            fields: Dict[str, tuple[type, Any]] = {}
-            for param_name, param in sig.parameters.items():
-                field_type = (
-                    param.annotation if param.annotation != Parameter.empty else Any
+            fields: Dict[str, tuple[type, Any]] = {
+                param_name: (
+                    param.annotation if param.annotation != Parameter.empty else Any,
+                    param.default if param.default != Parameter.empty else ...,
                 )
-                field_default = (
-                    param.default if param.default != Parameter.empty else ...
-                )
-                fields[param_name] = (field_type, field_default)
+                for param_name, param in sig.parameters.items()
+            }
 
             llamda_func = LlamdaFunction.create(
                 func_name, fields, func_description, func
@@ -63,102 +68,42 @@ class LlamdaFunctions:
 
         return decorator
 
-    @property
-    def tools(self) -> Dict[str, Union[LlamdaFunction[Any], LlamdaPydantic[Any]]]:
-        """
-        Get the tools.
-        """
-        return self._tools
+    def get(self, names: Optional[List[str]] = None) -> Sequence[ToolParam]:
+        if names is None:
+            names = list(self._tools.keys())
 
-    def prepare_tools(
-        self, tool_names: Optional[List[str]] = None
-    ) -> List[ChatCompletionToolParam]:
-        """
-        Prepare the tools for the OpenAI API.
-        """
-        tools = []
-        if tool_names is None:
-            tool_names = list(self._tools.keys())
+        return [
+            self._tools[name].to_tool_schema() for name in names if name in self._tools
+        ]
 
-        for name in tool_names:
-            if name in self._tools:
-                tool_schema = self._tools[name].to_schema()
-                tools.append(
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": tool_schema["title"],
-                            "description": tool_schema["description"],
-                            "parameters": {
-                                "type": "object",
-                                "properties": tool_schema["properties"],
-                                "required": tool_schema.get("required", []),
-                            },
-                        },
-                    }
-                )
-        return tools
+    def execute_function(self, tool_call: ToolCall) -> Dict[str, Any]:
+        try:
+            if tool_call.function.name not in self._tools:
+                raise KeyError(f"Function '{tool_call.function.name}' not found")
 
-    def execute_function(
-        self, function_name: str, function_args: str
-    ) -> Dict[str, str]:
-        """
-        Execute a function and return the result or error message.
-        """
-        if function_name in self._tools:
-            try:
-                parsed_args = json.loads(function_args)
-                result = self._tools[function_name].run(**parsed_args)
-                return {
-                    "role": "function",
-                    "name": function_name,
-                    "content": json.dumps(result),
-                }
-            except ValidationError as e:
-                return {
-                    "role": "function",
-                    "name": function_name,
-                    "content": json.dumps(
-                        {"error": f"Error: Validation failed - {str(e)}"}
-                    ),
-                }
-            except Exception as e:
-                return {
-                    "role": "function",
-                    "name": function_name,
-                    "content": json.dumps({"error": f"Error: {str(e)}"}),
-                }
-        else:
-            return {
-                "role": "function",
-                "name": function_name,
-                "content": json.dumps({"error": "Error: Function not found"}),
-            }
+            parsed_args = json.loads(tool_call.function.arguments)
+            result = self._tools[tool_call.function.name].run(**parsed_args)
+        except KeyError as e:
+            result = {"error": f"Error: {str(e)}"}
+        except ValidationError as e:
+            result = {"error": f"Error: Validation failed - {str(e)}"}
+        except Exception as e:
+            result = {"error": f"Error: {str(e)}"}
 
+        return {
+            "content": json.dumps(result),
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+        }
 
-def create_llamda_function(
-    func: Callable[P, R],
-    name: str | None = None,
-    description: str | None = None,
-) -> Union[LlamdaFunction[R], LlamdaPydantic[R]]:
-    """
-    Create a Llamda function.
-    """
-    func_name: str = name or func.__name__
-    func_description: str = description or func.__doc__ or ""
+    def __getitem__(self, key: str) -> Union[LlamdaFunction[Any], LlamdaPydantic[Any]]:
+        return self._tools[key]
 
-    sig = signature(func)
-    if len(sig.parameters) == 1:
-        param = next(iter(sig.parameters.values()))
-        if issubclass(param.annotation, BaseModel):
-            return LlamdaPydantic.create(
-                func_name, param.annotation, func_description, func
-            )
+    def __contains__(self, key: str) -> bool:
+        return key in self._tools
 
-    fields: Dict[str, tuple[type, Any]] = {}
-    for param_name, param in sig.parameters.items():
-        field_type = param.annotation if param.annotation != Parameter.empty else Any
-        field_default = param.default if param.default != Parameter.empty else ...
-        fields[param_name] = (field_type, field_default)
+    def __len__(self) -> int:
+        return len(self._tools)
 
-    return LlamdaFunction.create(func_name, fields, func_description, func)
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._tools)

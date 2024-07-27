@@ -1,133 +1,103 @@
-import json
-from typing import Any, Callable, List, Optional, Self, Sequence, TypedDict, NotRequired
+from typing import Any, Callable, List, Optional, Sequence
 
 from openai import OpenAI
-from openai.types.chat import (
+
+from llamda_fn.utils.api import (
+    ChatMessage,
+    ToolCall,
+    ToolParam,
     ChatCompletion,
-    ChatCompletionFunctionMessageParam,
-    ChatCompletionMessage,
-    ChatCompletionMessageParam,
-    ChatCompletionToolParam,
+    ToolMessage,
+    Message,
 )
-from openai.types.model import Model as OpenAIModel
-from pydantic import BaseModel, Field, model_validator
 
 from llamda_fn.functions import LlamdaFunctions
-from llamda_fn.utils import LlmApiConfig
+from llamda_fn.utils import LlamdaValidator
+from llamda_fn.exchanges import Exchange
 
 
-Request = TypedDict(
-    "Request",
-    {
-        "model": str,
-        "messages": List[ChatCompletionMessageParam],
-        "tools": NotRequired[List[ChatCompletionToolParam]],
-    },
-)
-
-
-class Llamda(BaseModel):
+class Llamda:
     """
     Llamda class to create, decorate, and run Llamda functions.
     """
 
-    llamda_functions: LlamdaFunctions = Field(..., default_factory=LlamdaFunctions)
-    api: Optional[OpenAI]
-    api_config: dict[str, Any] = Field(..., default_factory=dict)
-    retry: int = Field(default=3)
-    llm_name: str = Field(default="gpt-4-0613")
+    def __init__(
+        self,
+        api: Optional[OpenAI] = None,
+        api_config: Optional[dict[str, Any]] = None,
+        llm_name: str = "gpt-4-turbo-preview",
+        system_message: Optional[str] = None,
+    ):
+        validator = LlamdaValidator(
+            api=api, api_config=api_config or {}, llm_name=llm_name
+        )
+        if not validator.api:
+            raise ValueError("API is not set.")
 
-    @model_validator(mode="before")
-    @classmethod
-    def class_validator(cls, data: dict[str, Any]) -> dict[str, Any]:
-        """
-        Validate the model and create the OpenAI client if needed.
-        """
-        api = data.get("api")
-        api_config = data.get("api_config") or {}
-        print(api_config, api)
-        if not api:
-            api = LlmApiConfig(**api_config).create_openai_client()
-            if not api:
-                raise ValueError("Unable to create OpenAI client.")
-
-        llm_name: str = data.get("llm_name") or "gpt-4o"
-        if llm_name and api:
-            available_models: list[OpenAIModel] = list(api.models.list())
-            model_ids = [model.id for model in available_models]
-            if llm_name not in model_ids:
-                raise ValueError(
-                    f"Model '{llm_name}' is not available. "
-                    f"Available models: {', '.join(model_ids)}"
-                )
-        else:
-            raise ValueError("No LLM API client or LLM name provided.")
-
-        data["api"] = api
-        return data
-
-    @model_validator(mode="after")
-    def instance_validator(self) -> Self:
-        """
-        Validate the model and create the OpenAI client if needed.
-        """
-        if not self.api:
-            raise ValueError("No LLM API client provided.")
-        if not self.llamda_functions:
-            self.llamda_functions = LlamdaFunctions()
-        return self
-
-    class Config:
-        """
-        Config for the Llamda class.
-        """
-
-        arbitrary_types_allowed = True
+        self.api: OpenAI = validator.api
+        self.llm_name: str = validator.llm_name
+        self.functions: LlamdaFunctions = LlamdaFunctions()
+        self.exchange = Exchange(system_message=system_message)
 
     def llamdafy(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
         """
         Decorator method to create a Llamda function.
         """
-        return self.llamda_functions.llamdafy(*args, **kwargs)
+        return self.functions.llamdafy(*args, **kwargs)
+
+    @property
+    def tools(self) -> Sequence[ToolParam]:
+        """
+        Get the tools available to the Llamda instance.
+        """
+        return self.functions.get()
 
     def run(
         self,
-        messages: List[ChatCompletionMessageParam],
-        function_names: Optional[List[str]] = None,
-    ) -> str:
+        tool_names: Optional[List[str]] = None,
+        exchange: Optional[Exchange] = None,
+        llm_name: Optional[str] = None,
+    ) -> ChatMessage | ToolMessage:
         """
         Run the OpenAI API with the prepared data.
         """
-        tools: Sequence[ChatCompletionToolParam] = self.llamda_functions.prepare_tools(
-            function_names
-        )
-
+        current_exchange = exchange or self.exchange
         request: dict[str, Any] = {
-            "model": self.llm_name,
-            "messages": messages,
+            "model": llm_name or self.llm_name,
+            "messages": current_exchange,
         }
-        if tools and len(tools) > 0:
+
+        tools: Sequence[ToolParam] = self.functions.get(tool_names)
+        if tools:
             request["tools"] = tools
 
-        for _ in range(self.retry + 1):
-            response: ChatCompletion = self.api.chat.completions.create(**request)
-            assistant_message: ChatCompletionMessage = response.choices[0].message
-            if assistant_message.tool_calls:
-                for tool_call in assistant_message.tool_calls:
-                    function_result = self.llamda_functions.execute_function(
-                        tool_call.function.name, tool_call.function.arguments
-                    )
-                    messages.append(
-                        ChatCompletionFunctionMessageParam(
-                            role="function",
-                            content=json.dumps(function_result),
-                            name=tool_call.function.name,
-                        )
-                    )
-            else:
-                return assistant_message.content or "No response"
+        response: ChatCompletion = self.api.chat.completions.create(**request)
+        message: Message = response.choices[0].message
 
-        return "Max retries reached. Unable to complete the request."
+        if message.tool_calls:
+            self._handle_tool_calls(message.tool_calls, current_exchange)
+        else:
+            current_exchange.append(message.content or "No response", role="assistant")
+
+        return current_exchange[-1]
+
+    def _handle_tool_calls(
+        self, tool_calls: List[ToolCall], exchange: Exchange
+    ) -> None:
+        """
+        Handle tool calls and update the exchange.
+        """
+        for tool_call in tool_calls:
+            result = self.functions.execute_function(tool_call=tool_call)
+            exchange.append(result)
+        self.run(exchange=exchange)
+
+    def send_message(self, message: str) -> ChatMessage | ToolMessage:
+        """
+        Send a message and get a response.
+        """
+        self.exchange.append(message, role="user")
+        return self.run()
 
 
-__all__ = ["Llamda"]
+__all__: list[str] = ["Llamda"]

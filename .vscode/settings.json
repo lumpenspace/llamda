@@ -3,5 +3,13 @@
     "llamda_fn"
   ],
   "python.testing.unittestEnabled": false,
-  "python.testing.pytestEnabled": true
+  "python.testing.pytestEnabled": true,
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportUnusedVariable": {
+            "*_test.py": "none"
+        },
+        "reportUnusedFunction": {
+            "**_test.py": "none"
+        }
+    }
 }

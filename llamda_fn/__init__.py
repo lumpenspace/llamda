@@ -9,8 +9,4 @@ from .functions import (
 from .llamda import Llamda
 
 
-__all__: list[str] = [
-    "Llamda",
-    "LlamdaFunctions",
-    "llamda_classes",
-]
+__all__: list[str] = ["Llamda", "LlamdaFunctions", "llamda_classes"]

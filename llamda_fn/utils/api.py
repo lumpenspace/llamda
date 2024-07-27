@@ -2,9 +2,25 @@
 
 from os import environ
 from typing import Any, Optional
+import dotenv
 
-from openai import OpenAI
 from pydantic import BaseModel, Field, field_validator
+from openai import OpenAI
+from openai.types.chat import (
+    ChatCompletionMessageToolCall as ToolCall,
+    ChatCompletionToolMessageParam as ToolMessage,
+    ChatCompletionToolParam as ToolParam,
+    ChatCompletion as ChatCompletion,
+    ChatCompletionMessage as Message,
+    ChatCompletionAssistantMessageParam as AssistantMessage,
+    ChatCompletionSystemMessageParam as SystemMessage,
+    ChatCompletionUserMessageParam as UserMessage,
+    ChatCompletionMessageParam as ChatMessage,
+    ChatCompletionMessageParam as MessageParam,
+)
+
+
+dotenv.load_dotenv()
 
 
 class LlmApiConfig(BaseModel):
@@ -14,7 +30,9 @@ class LlmApiConfig(BaseModel):
 
     base_url: Optional[str] = None
     api_key: Optional[str] = Field(
-        exclude=True, alias="api_key", default=environ.get("OPENAI_API_KEY")
+        exclude=True,
+        alias="api_key",
+        default=environ.get("OPENAI_API_KEY"),
     )
     organization: Optional[str] = None
     timeout: Optional[float] = None
@@ -39,3 +57,18 @@ class LlmApiConfig(BaseModel):
         """
         config = {k: v for k, v in self.model_dump().items() if v is not None}
         return OpenAI(**config)
+
+
+__all__ = [
+    "LlmApiConfig",
+    "ToolParam",
+    "ToolCall",
+    "ToolMessage",
+    "AssistantMessage",
+    "SystemMessage",
+    "UserMessage",
+    "ChatMessage",
+    "ChatCompletion",
+    "MessageParam",
+    "Message",
+]

@@ -1,5 +1,5 @@
 from ast import List
-from typing import Any, Dict, Optional, Union, get_args, get_origin
+from typing import Any, Dict, Union, get_args, get_origin
 from pydantic import BaseModel, Field, ValidationError, create_model
 from pydantic.fields import FieldInfo
 from pydantic_core import SchemaError
@@ -45,16 +45,15 @@ def process_field(
                 # This is an Optional type
                 non_none_type = next(arg for arg in args if arg is not type(None))
                 if non_none_type is float:
-                    field_schema["type"] = "number"
+                    field_schema = {"type": "number", "nullable": True}
                 elif non_none_type is int:
-                    field_schema["type"] = "integer"
+                    field_schema = {"type": "integer", "nullable": True}
                 elif non_none_type is str:
-                    field_schema["type"] = "string"
+                    field_schema = {"type": "string", "nullable": True}
                 elif isinstance(non_none_type, type) and issubclass(
                     non_none_type, BaseModel
                 ):
-                    field_schema["type"] = "object"
-                field_schema["nullable"] = True
+                    field_schema = {"type": "object", "nullable": True}
 
         # Ensure 'type' is always set
         if "type" not in field_schema:
@@ -75,6 +74,9 @@ def process_field(
             else:
                 field_schema["type"] = "any"
 
+        # Remove 'title' field if present
+        field_schema.pop("title", None)
+
         # Merge field_info with the generated schema
         if isinstance(field_info, dict):
             for key, value in field_info.items():
@@ -85,8 +87,6 @@ def process_field(
     except (SchemaError, ValidationError) as e:
         print(f"Error processing field: {e}")
         return Any, {"type": "any", "error": str(e)}
-
-        # If schema generation fails, return Any type a
 
 
 def process_fields(fields: Dict[str, Any]) -> Dict[str, tuple[Any, JsonDict]]:
@@ -114,20 +114,3 @@ def process_fields(fields: Dict[str, Any]) -> Dict[str, tuple[Any, JsonDict]]:
         processed_fields[field_name] = (processed_type, processed_info)
 
     return processed_fields
-
-
-def create_model_from_fields(
-    name: str, fields: Dict[str, tuple[Any, JsonDict]]
-) -> type[BaseModel]:
-    """
-    Create a Pydantic model from a dictionary of fields.
-    """
-    model_fields = {}
-    for field_name, (field_type, field_info) in fields.items():
-        default = field_info.get("default", ...)
-        if default is None:
-            field_type = Optional[field_type]
-            field_info["default"] = None
-        model_fields[field_name] = (field_type, Field(**field_info))
-
-    return create_model(name, **model_fields)

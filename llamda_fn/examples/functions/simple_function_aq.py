@@ -17,3 +17,9 @@ def aq(input_string: str) -> str:
     digits = sum(int(char) for char in input_string)
     letters = sum(ord(char) - 96 for char in input_string)
     return str(digits + letters)
+
+
+def aq_multiple(input_strings: list[str]) -> list[tuple[str, str]]:
+    """Calculates the alphanumeric cabala value of a list of strings and return tuples of
+    (string, aq_value) sorted by the cabala value."""
+    return sorted([(s, aq(s)) for s in input_strings], key=lambda x: x[1])
