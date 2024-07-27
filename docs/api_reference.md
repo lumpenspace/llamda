@@ -2,7 +2,7 @@
 # API Reference
 
 ```{eval-rst}
-.. automodule:: llamda-fn
+.. automodule:: llamda_fn
    :members:
    :undoc-members:
    :show-inheritance:
