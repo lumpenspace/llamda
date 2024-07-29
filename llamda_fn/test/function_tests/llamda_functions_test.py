@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 
 from llamda_fn.functions import LlamdaFunctions
-from llamda_fn.utils.api import ToolCall
+from llamda_fn.llms.api import ToolCall
 
 
 @pytest.fixture

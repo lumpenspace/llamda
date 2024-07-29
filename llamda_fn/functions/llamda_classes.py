@@ -1,7 +1,7 @@
 from typing import Any, Callable, Dict, Generic, TypeVar
 from pydantic import BaseModel, Field, create_model, ConfigDict
 
-from llamda_fn.utils.api import ToolParam
+from llamda_fn.llms import OaiToolParam
 
 R = TypeVar("R")
 
@@ -23,7 +23,7 @@ class LlamdaBase(BaseModel, Generic[R]):
         """Get the JSON schema for the Llamda function."""
         raise NotImplementedError
 
-    def to_tool_schema(self) -> ToolParam:
+    def to_tool_schema(self) -> OaiToolParam:
         """Get the JSON schema for the LlamdaPydantic."""
         schema = self.to_schema()
         return {
@@ -116,9 +116,9 @@ class LlamdaPydantic(LlamdaBase[R]):
         schema["description"] = self.description
         return schema
 
-    def to_tool_schema(self) -> ToolParam:
+    def to_tool_schema(self) -> OaiToolParam:
         """Get the tool schema for the LlamdaPydantic."""
-        schema = self.to_schema()
+        schema: Dict[str, Any] = self.to_schema()
         return {
             "type": "function",
             "function": {

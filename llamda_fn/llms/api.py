@@ -6,19 +6,6 @@ import dotenv
 
 from pydantic import BaseModel, Field, field_validator
 from openai import OpenAI
-from openai.types.chat import (
-    ChatCompletionMessageToolCall as ToolCall,
-    ChatCompletionToolMessageParam as ToolMessage,
-    ChatCompletionToolParam as ToolParam,
-    ChatCompletion as ChatCompletion,
-    ChatCompletionMessage as Message,
-    ChatCompletionAssistantMessageParam as AssistantMessage,
-    ChatCompletionSystemMessageParam as SystemMessage,
-    ChatCompletionUserMessageParam as UserMessage,
-    ChatCompletionMessageParam as ChatMessage,
-    ChatCompletionMessageParam as MessageParam,
-)
-
 
 dotenv.load_dotenv()
 
@@ -59,16 +46,6 @@ class LlmApiConfig(BaseModel):
         return OpenAI(**config)
 
 
-__all__ = [
+__all__: list[str] = [
     "LlmApiConfig",
-    "ToolParam",
-    "ToolCall",
-    "ToolMessage",
-    "AssistantMessage",
-    "SystemMessage",
-    "UserMessage",
-    "ChatMessage",
-    "ChatCompletion",
-    "MessageParam",
-    "Message",
 ]
