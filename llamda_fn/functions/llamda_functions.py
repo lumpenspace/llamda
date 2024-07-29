@@ -43,8 +43,11 @@ class LlamdaFunctions:
                 if isclass(param.annotation) and issubclass(
                     param.annotation, BaseModel
                 ):
-                    llamda_func: LlamdaCallable[R] = LlamdaPydantic.create(
-                        func_name, param.annotation, func_description, func
+                    llamda_func = LlamdaPydantic.create(
+                        call_func=func,
+                        name=func_name,
+                        description=func_description,
+                        model=param.annotation,
                     )
                     self._tools[func_name] = llamda_func
                     return llamda_func

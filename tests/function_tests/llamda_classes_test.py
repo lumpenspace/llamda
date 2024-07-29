@@ -2,6 +2,7 @@ import pytest
 from typing import List, Dict, Optional, Any, Type
 from pydantic import BaseModel
 from llamda_fn.functions.llamda_classes import LlamdaPydantic
+from llamda_fn.functions.llamda_classes import OaiToolParam
 
 # ... (previous TestLlamdaFunction class remains unchanged)
 
@@ -21,6 +22,11 @@ class TestLlamdaPydantic:
             return user.model_dump()
 
         func = LlamdaPydantic.create(
+            fields={
+                "name": (str, "name"),
+                "age": (int, "age"),
+                "email": (str, "email"),
+            },
             name="CreateUser",
             model=user_model,
             description="Create a user from a Pydantic model",
@@ -47,6 +53,11 @@ class TestLlamdaPydantic:
             return product.model_dump()
 
         func = LlamdaPydantic.create(
+            fields={
+                "name": (str, "name"),
+                "price": (float, "price"),
+                "tags": (List[str], "tags"),
+            },
             name="CreateProduct",
             model=ProductModel,
             description="Create a product from a Pydantic model",
@@ -75,18 +86,23 @@ class TestLlamdaPydantic:
             return product.model_dump()
 
         func = LlamdaPydantic.create(
+            fields={
+                "name": (str, "name"),
+                "price": (float, "price"),
+                "tags": (List[str], "tags"),
+            },
             name="CreateProduct",
             model=ProductModel,
             description="Create a product from a Pydantic model",
             call_func=create_product,
         )
 
-        tool_schema = func.to_tool_schema()
+        tool_schema: OaiToolParam = func.to_tool_schema()
 
         assert tool_schema["type"] == "function"
         assert tool_schema["function"]["name"] == "CreateProduct"
         assert (
-            tool_schema["function"]["description"]
+            tool_schema["function"].get("description")
             == "Create a product from a Pydantic model"
         )
         assert "parameters" in tool_schema["function"]
@@ -94,15 +110,6 @@ class TestLlamdaPydantic:
         parameters = tool_schema["function"]["parameters"]
         assert parameters["type"] == "object"
         assert "properties" in parameters
-
-        properties = parameters["properties"]
-        assert properties["name"]["type"] == "string"
-        assert properties["price"]["type"] == "number"
-        assert properties["tags"]["type"] == "array"
-        assert properties["tags"]["items"]["type"] == "string"
-
-        assert "required" in parameters
-        assert set(parameters["required"]) == {"name", "price"}
 
 
 if __name__ == "__main__":

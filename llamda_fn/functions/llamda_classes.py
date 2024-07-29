@@ -1,7 +1,7 @@
 from typing import Any, Callable, Dict, Generic, TypeVar, Type
 from pydantic import BaseModel, Field, create_model, ConfigDict
 
-from llamda_fn.llms import OaiToolParam
+from llamda_fn.llms.api_types import OaiToolParam
 
 R = TypeVar("R")
 
@@ -17,7 +17,6 @@ class LlamdaCallable(Generic[R]):
     def create(
         cls,
         call_func: Callable[..., R],
-        fields: Dict[str, tuple[type, Any]],
         name: str = "",
         description: str = "",
         **kwargs: Any,
@@ -64,20 +63,23 @@ class LlamdaFunction(LlamdaBase[R]):
     def create(
         cls,
         call_func: Callable[..., R],
-        fields: Dict[str, tuple[type, Any]],
         name: str = "",
         description: str = "",
+        fields: Dict[str, tuple[type, Any]] = {},
         **kwargs: Any,
     ) -> "LlamdaFunction[R]":
         """Create a new LlamdaFunction from a function."""
         model_fields = {}
         for field_name, (field_type, field_default) in fields.items():
+            print(field_name, field_default, field_type)
             if field_default is ...:
                 model_fields[field_name] = (field_type, Field(...))
             else:
                 model_fields[field_name] = (field_type, Field(default=field_default))
 
-        parameter_model = create_model(f"{name}Parameters", **model_fields)
+        parameter_model: type[BaseModel] = create_model(
+            f"{name}Parameters", **model_fields
+        )
 
         return cls(
             name=name,
@@ -106,13 +108,20 @@ class LlamdaPydantic(LlamdaBase[R]):
 
     @classmethod
     def create(
-        cls, name: str, model: Type[BaseModel], description: str, func: Callable[..., R]
+        cls,
+        call_func: Callable[..., R],
+        name: str = "",
+        description: str = "",
+        model: Type[BaseModel] = BaseModel,
+        **kwargs: Any,
     ) -> "LlamdaPydantic[R]":
+        """Create a new LlamdaPydantic from a Pydantic model."""
+
         return cls(
             name=name,
             description=description,
+            call_func=call_func,
             model=model,
-            call_func=func,
         )
 
     def run(self, **kwargs: Any) -> R:
@@ -122,7 +131,7 @@ class LlamdaPydantic(LlamdaBase[R]):
 
     def to_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the LlamdaPydantic."""
-        schema = self.model.model_json_schema()
+        schema: dict[str, Any] = self.model.model_json_schema(mode="serialization")
         schema["title"] = self.name
         schema["description"] = self.description
         return schema

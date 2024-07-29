@@ -6,7 +6,6 @@ from openai.types.chat import ChatCompletion as OaiCompletion
 from openai.types.chat import ChatCompletionToolParam as OaiToolParam
 from openai.types.chat import ChatCompletionMessageParam as OaiRequestMessage
 from openai.types.chat import ChatCompletionAssistantMessageParam as OaiAssistantMessage
-from openai.types.chat import ChatCompletionToolMessageParam as OaiToolMessage
 from openai.types.chat import ChatCompletionUserMessageParam as OaiUserMessage
 from openai.types.chat import ChatCompletionSystemMessageParam as OaiSystemMessage
 from openai.types.chat import ChatCompletionMessageToolCall as OaiToolCall
@@ -17,12 +16,17 @@ Role = Literal["user", "system", "assistant", "tool"]
 
 
 class LlToolCall(BaseModel):
+    """
+    Describes a function call from the LLM
+    """
+
     id: str
     name: str
     arguments: str
 
     @classmethod
     def from_oai_tool_call(cls, call: OaiToolCall) -> Self:
+        """Gets data from the Openai Tool Call"""
         return cls(
             id=call.id,
             name=call.function.name,
@@ -32,8 +36,6 @@ class LlToolCall(BaseModel):
 
 class ToolResponse(BaseModel):
     id: str
-    name: str
-    arguments: str
     _result: str
 
     def __init__(self, result: str = "", **kwargs: Any) -> None:
@@ -115,7 +117,6 @@ class LLMessage(BaseModel):
         return cls(
             role="tool",
             id=execution.id,
-            name=execution.name,
             content=execution.result,
         )
 

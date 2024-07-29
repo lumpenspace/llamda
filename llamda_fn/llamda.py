@@ -2,11 +2,10 @@ from typing import Any, Callable, List, Optional, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 
 from llamda_fn.llms.api_types import (
+    LLCompletion,
     LLMessage,
     LlToolCall,
     ToolResponse,
-    LLCompletion,
-    LLToolMessage,
     OaiToolParam,
 )
 
@@ -61,14 +60,11 @@ class Llamda:
 
         current_exchange.append(ll_completion.message)
         if ll_completion.message.tool_calls:
-            self._handle_tool_calls(ll_completion.message.tool_calls, current_exchange)
+            self._handle_tool_calls(ll_completion.message.tool_calls)
 
         return current_exchange[-1]
 
-    def _handle_tool_calls(
-        self, tool_calls: List[LlToolCall], exchange: Exchange
-    ) -> None:
-        execution_results: List[ToolResponse] = []  # Change list to List
+    def _handle_tool_calls(self, tool_calls: List[LlToolCall]) -> None:
         with ThreadPoolExecutor() as executor:
             futures: List[Future[ToolResponse]] = []  # Change list to List
             for tool_call in tool_calls:
@@ -76,10 +72,9 @@ class Llamda:
 
             for future in as_completed(futures):
                 result: ToolResponse = future.result()
-                execution_results.append(result)
-                exchange.append(LLToolMessage.from_execution(result))
+                self.exchange.append(LLMessage.from_execution(result))
 
-        self.run(exchange=exchange)
+        self.run()
 
     def _process_tool_call(self, tool_call: LlToolCall) -> ToolResponse:
         """

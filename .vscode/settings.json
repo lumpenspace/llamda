@@ -1,15 +1,13 @@
 {
   "python.testing.pytestArgs": [
-    "llamda_fn"
+    "tests",
+    "--cov=llamda_fn",
+    "--log-file-level=10",
+    "--log-file=DEBUG",
+    "-s",
   ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
-    "python.analysis.diagnosticSeverityOverrides": {
-        "reportUnusedVariable": {
-            "*_test.py": "none"
-        },
-        "reportUnusedFunction": {
-            "**_test.py": "none"
-        }
-    }
+  "python.testing.autoTestDiscoverOnSaveEnabled": true,
+
 }
