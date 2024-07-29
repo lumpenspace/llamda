@@ -1,18 +1,52 @@
-from typing import Any
+from typing import Any, List
 from llamda_fn.llms.api_types import (
-    LLMessage,
-    OaiResponseMessage,
+    Role,
+    LlToolCall,
+    OaiUserMessage,
+    OaiSystemMessage,
+    OaiAssistantMessage,
 )
 
 
-def ll_to_oai_message(message: LLMessage, model: str) -> OaiResponseMessage:
-    oai_message: dict[str, Any] = {
-        "role": message.role,
-        "model": model,
-        "content": message.content,
-        "tools": [(tool_call) for tool_call in message.tool_calls],
-    }
-    if message.name:
-        oai_message["name"] = message.name
-    # We don't need to transform tool_calls here
-    return OaiResponseMessage(**oai_message)
+def make_oai_message(
+    role: Role,
+    content: str,
+    name: str | None = None,
+    tool_calls: List[LlToolCall] | None = None,
+    **kwargs: Any,
+) -> OaiUserMessage | OaiSystemMessage | OaiAssistantMessage:
+    kwargs = {}
+    if name:
+        kwargs["name"] = name
+    match role:
+        case "user":
+            return OaiUserMessage(
+                content=content,
+                **kwargs,
+            )
+        case "system":
+            return OaiSystemMessage(
+                content=content,
+                **kwargs,
+            )
+        case "assistant":
+
+            if tool_calls:
+                kwargs["tool_calls"] = [
+                    tool_call.model_dump() for tool_call in tool_calls
+                ]
+            return OaiAssistantMessage(
+                content=content,
+                **kwargs,
+            )
+        case _:
+            raise ValueError(f"Invalid role: {role}")
+
+
+OaiRoleMessage: dict[
+    Role, type[OaiUserMessage] | type[OaiSystemMessage] | type[OaiAssistantMessage]
+] = {
+    "user": OaiUserMessage,
+    "system": OaiSystemMessage,
+    "assistant": OaiAssistantMessage,
+}

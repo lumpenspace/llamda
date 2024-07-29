@@ -13,7 +13,6 @@ from llamda_fn.llms.api_types import (
 from llamda_fn.functions import LlamdaFunctions
 from llamda_fn.llms.llm_manager import LLManager
 from llamda_fn.llms.exchange import Exchange
-from llamda_fn.llms.type_transformers import ll_to_oai_message
 
 
 class Llamda:
@@ -55,10 +54,8 @@ class Llamda:
         current_exchange: Exchange = exchange or self.exchange
 
         ll_completion: LLCompletion = self.api.chat_completion(
-            messages=[
-                ll_to_oai_message(msg, llm_name or self.api.llm_name)
-                for msg in current_exchange
-            ],
+            messages=[*current_exchange],
+            llm_name=llm_name or self.api.llm_name,
             tools=self.functions.get(tool_names),
         )
 

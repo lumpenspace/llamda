@@ -4,8 +4,11 @@ from typing import Any, Literal, Self, List
 
 from openai.types.chat import ChatCompletion as OaiCompletion
 from openai.types.chat import ChatCompletionToolParam as OaiToolParam
-from openai.types.chat import ChatCompletionMessage as OaiResponseMessage
 from openai.types.chat import ChatCompletionMessageParam as OaiRequestMessage
+from openai.types.chat import ChatCompletionAssistantMessageParam as OaiAssistantMessage
+from openai.types.chat import ChatCompletionToolMessageParam as OaiToolMessage
+from openai.types.chat import ChatCompletionUserMessageParam as OaiUserMessage
+from openai.types.chat import ChatCompletionSystemMessageParam as OaiSystemMessage
 from openai.types.chat import ChatCompletionMessageToolCall as OaiToolCall
 from openai.types.chat import ChatCompletionFunctionCallOptionParam as OaiToolFunction
 from pydantic import BaseModel, Field
@@ -45,6 +48,50 @@ class ToolResponse(BaseModel):
             return self._result
 
 
+def make_oai_role_message(
+    role: Role,
+    content: str,
+    name: str | None = None,
+    tool_calls: List[LlToolCall] | None = None,
+    **kwargs: Any,
+) -> OaiUserMessage | OaiSystemMessage | OaiAssistantMessage:
+    kwargs = {}
+    if name:
+        kwargs["name"] = name
+    match role:
+        case "user":
+            return OaiUserMessage(
+                content=content,
+                **kwargs,
+            )
+        case "system":
+            return OaiSystemMessage(
+                content=content,
+                **kwargs,
+            )
+        case "assistant":
+
+            if tool_calls:
+                kwargs["tool_calls"] = [
+                    tool_call.model_dump() for tool_call in tool_calls
+                ]
+            return OaiAssistantMessage(
+                content=content,
+                **kwargs,
+            )
+        case _:
+            raise ValueError(f"Invalid role: {role}")
+
+
+OaiRoleMessage: dict[
+    Role, type[OaiUserMessage] | type[OaiSystemMessage] | type[OaiAssistantMessage]
+] = {
+    "user": OaiUserMessage,
+    "system": OaiSystemMessage,
+    "assistant": OaiAssistantMessage,
+}
+
+
 class LLMessageMeta(BaseModel):
     choice: dict[str, Any] | None = Field(exclude=True)
     completion: dict[str, Any] | None = Field(exclude=True)
@@ -58,6 +105,11 @@ class LLMessage(BaseModel):
     tool_calls: List[LlToolCall] | None = None
     meta: LLMessageMeta | None = None
 
+    def get_oai_message(self):
+        return make_oai_role_message(
+            self.role, self.content, self.name, self.tool_calls
+        )
+
     @classmethod
     def from_execution(cls, execution: ToolResponse) -> Self:
         return cls(
@@ -66,22 +118,6 @@ class LLMessage(BaseModel):
             name=execution.name,
             content=execution.result,
         )
-
-
-class LLUserMessage(LLMessage):
-    role: Role = "user"
-
-
-class LLSystemMessage(LLMessage):
-    role: Role = "system"
-
-
-class LLAssistantMessage(LLMessage):
-    role: Role = "assistant"
-
-
-class LLToolMessage(LLMessage):
-    role: Role = "tool"
 
 
 class LLCompletion(BaseModel):
@@ -119,14 +155,9 @@ class OaiRequest(BaseModel):
 
 __all__ = [
     "LLMessage",
-    "LLToolMessage",
-    "LLUserMessage",
-    "LLSystemMessage",
-    "LLAssistantMessage",
     "LLCompletion",
     "OaiCompletion",
     "OaiToolParam",
     "OaiToolFunction",
-    "OaiResponseMessage",
     "OaiToolCall",
 ]

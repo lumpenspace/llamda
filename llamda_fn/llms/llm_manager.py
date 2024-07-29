@@ -1,7 +1,9 @@
 from typing import Any
 from pydantic import Field, model_validator
 from openai import OpenAI
-from .api_types import LLCompletion, LLMessage, OaiCompletion
+from openai.types.chat import ChatCompletion
+from .api_types import LLCompletion, LLMessage
+from .type_transformers import make_oai_message
 from .api import LlmApiConfig
 
 
@@ -22,22 +24,16 @@ class LLManager(OpenAI):
 
     def chat_completion(self, messages: list[LLMessage], **kwargs: Any) -> LLCompletion:
 
-        oai_completion: OaiCompletion = super().chat.completions.create(
-            **kwargs,
-            messages=[
-                {
-                    "role": msg.role,
-                    "content": msg.content,
-                    "tool_calls": [tool_call for tool_call in msg.tool_calls or []],
-                }
-                for msg in messages
-            ],
+        oai_completion: ChatCompletion = super().chat.completions.create(
+            messages=[make_oai_message(**msg.model_dump()) for msg in messages],
+            model=self.llm_name,
         )
         return LLCompletion.from_completion(oai_completion)
 
     @model_validator(mode="before")
     @classmethod
     def validate_api_and_model(cls, data: dict[str, Any]) -> dict[str, Any]:
+        """Validate the API and model."""
         api_config = data.get("api_config") or {}
         api = (
             data.get("api")
