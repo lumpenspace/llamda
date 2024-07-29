@@ -8,40 +8,32 @@ from typing import (
     Optional,
     TypeVar,
     ParamSpec,
-    Union,
     Sequence,
     Iterator,
 )
 
 from pydantic import BaseModel, ValidationError
-from llamda_fn.llms.api_types import ToolCall, ToolResponse, OaiToolParam
-from .llamda_classes import LlamdaFunction, LlamdaPydantic
+from llamda_fn.llms.api_types import LlToolCall, ToolResponse, OaiToolParam
+from .llamda_classes import LlamdaFunction, LlamdaPydantic, LlamdaCallable
 
 R = TypeVar("R")
 P = ParamSpec("P")
 
 
 class LlamdaFunctions:
-    """Creation and management of LLM tools"""
-
     def __init__(self) -> None:
-        self._tools: Dict[str, Union[LlamdaFunction[Any], LlamdaPydantic[Any]]] = {}
+        self._tools: Dict[str, LlamdaCallable[Any]] = {}
 
     @property
-    def tools(self) -> Dict[str, Union[LlamdaFunction[Any], LlamdaPydantic[Any]]]:
-        """Returns the tools registered with the registry"""
+    def tools(self) -> Dict[str, LlamdaCallable[Any]]:
         return self._tools
 
     def llamdafy(
         self,
         name: Optional[str] = None,
         description: Optional[str] = None,
-    ) -> Callable[[Callable[P, R]], Union[LlamdaFunction[R], LlamdaPydantic[R]]]:
-        """Decorator to mark a function as a tool and register it with the registry"""
-
-        def decorator(
-            func: Callable[P, R]
-        ) -> Union[LlamdaFunction[R], LlamdaPydantic[R]]:
+    ) -> Callable[[Callable[P, R]], LlamdaCallable[R]]:
+        def decorator(func: Callable[P, R]) -> LlamdaCallable[R]:
             func_name: str = name or func.__name__
             func_description: str = description or func.__doc__ or ""
 
@@ -51,7 +43,7 @@ class LlamdaFunctions:
                 if isclass(param.annotation) and issubclass(
                     param.annotation, BaseModel
                 ):
-                    llamda_func = LlamdaPydantic.create(
+                    llamda_func: LlamdaCallable[R] = LlamdaPydantic.create(
                         func_name, param.annotation, func_description, func
                     )
                     self._tools[func_name] = llamda_func
@@ -65,8 +57,11 @@ class LlamdaFunctions:
                 for param_name, param in sig.parameters.items()
             }
 
-            llamda_func: LlamdaFunction[R] = LlamdaFunction.create(
-                func_name, fields, func_description, func
+            llamda_func: LlamdaCallable[R] = LlamdaFunction.create(
+                call_func=func,
+                fields=fields,
+                name=func_name,
+                description=func_description,
             )
             self._tools[func_name] = llamda_func
             return llamda_func
@@ -82,7 +77,7 @@ class LlamdaFunctions:
             self._tools[name].to_tool_schema() for name in names if name in self._tools
         ]
 
-    def execute_function(self, tool_call: ToolCall) -> ToolResponse:
+    def execute_function(self, tool_call: LlToolCall) -> ToolResponse:
         """Executes the function specified in the tool call with the required arguments"""
         try:
             if tool_call.name not in self._tools:
@@ -91,18 +86,20 @@ class LlamdaFunctions:
             parsed_args = json.loads(tool_call.arguments)
             result = self._tools[tool_call.name].run(**parsed_args)
         except KeyError as e:
-            result: dict[str, str] = {"error": f"Error: {str(e)}"}
+            result = {"error": f"Error: {str(e)}"}
         except ValidationError as e:
             result = {"error": f"Error: Validation failed - {str(e)}"}
         except Exception as e:
             result = {"error": f"Error: {str(e)}"}
 
         return ToolResponse(
-            result,
-            **tool_call.model_dump(),
+            id=tool_call.id,
+            name=tool_call.name,
+            arguments=tool_call.arguments,
+            result=json.dumps(result),
         )
 
-    def __getitem__(self, key: str) -> Union[LlamdaFunction[Any], LlamdaPydantic[Any]]:
+    def __getitem__(self, key: str) -> LlamdaCallable[Any]:
         return self._tools[key]
 
     def __contains__(self, key: str) -> bool:

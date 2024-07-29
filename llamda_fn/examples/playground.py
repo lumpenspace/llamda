@@ -1,19 +1,30 @@
+from typing import List, Tuple
 from llamda_fn import Llamda
-from llamda_fn.examples import aq_multiple
-
-global ll
+from llamda_fn.examples.functions.simple_function_aq import aq
 
 
-def doit():
+ll = Llamda(
+    system_message="""You are a cabalistic assistant who is eager to help users
+    find weird numerical correspondences between strings.
     """
-    Create a Llamda instance with a system message and a function.
+)
+
+
+@ll.fy()
+def aq_multiple(input_strings: List[str]) -> List[Tuple[str, int]]:
     """
+    Calculate the Alphanumeric Quabala (AQ) value for multiple strings.
 
-    ll = Llamda(
-        system_message="You are a cabalistic assistant who is eager to help user find weird numerical correspondences"
-    )
+    This function calculates the AQ value for each string in the input list
+    and returns a sorted list of tuples containing the original string and its AQ value.
 
-    ll.fy()(aq_multiple)
+    Args:
+        input_strings (List[str]): A list of strings to calculate AQ values for.
+
+    Returns:
+        List[Tuple[str, int]]: A list of tuples (original_string, aq_value) sorted by AQ value.
+    """
+    return sorted([(s, aq(s)) for s in input_strings], key=lambda x: x[1])
 
 
-doit()
+ll.send_message("hello")

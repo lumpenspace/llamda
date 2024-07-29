@@ -1,28 +1,33 @@
 import uuid
 from functools import cached_property
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, List
 
-from openai.types.chat import ChatCompletionMessage as OaiMessage
-from openai.types.chat import ChatCompletionToolParam as OaiToolParam
 from openai.types.chat import ChatCompletion as OaiCompletion
+from openai.types.chat import ChatCompletionToolParam as OaiToolParam
+from openai.types.chat import ChatCompletionMessage as OaiResponseMessage
+from openai.types.chat import ChatCompletionMessageParam as OaiRequestMessage
 from openai.types.chat import ChatCompletionMessageToolCall as OaiToolCall
-from pydantic import BaseModel, Field, field_validator
+from openai.types.chat import ChatCompletionFunctionCallOptionParam as OaiToolFunction
+from pydantic import BaseModel, Field
 
-type Role = Literal["user"] | Literal["system"] | Literal["assistant"] | Literal["tool"]
-
-
-OaiChoice = OaiMessage | OaiToolCall
+Role = Literal["user", "system", "assistant", "tool"]
 
 
-class ToolCall(BaseModel):
+class LlToolCall(BaseModel):
     id: str
     name: str
     arguments: str
 
+    @classmethod
+    def from_oai_tool_call(cls, call: OaiToolCall) -> Self:
+        return cls(
+            id=call.id,
+            name=call.function.name,
+            arguments=call.function.arguments,
+        )
+
 
 class ToolResponse(BaseModel):
-    """Tool response"""
-
     id: str
     name: str
     arguments: str
@@ -32,10 +37,8 @@ class ToolResponse(BaseModel):
         super().__init__(**kwargs)
         self._result = result
 
-    # memoised getter for result json
     @cached_property
     def result(self) -> str:
-        """Memoised getter for result json"""
         if isinstance(self._result, BaseModel):
             return self._result.model_dump_json()
         else:
@@ -43,78 +46,64 @@ class ToolResponse(BaseModel):
 
 
 class LLMessageMeta(BaseModel):
-    """Meta data for the message"""
-
     choice: dict[str, Any] | None = Field(exclude=True)
     completion: dict[str, Any] | None = Field(exclude=True)
 
 
 class LLMessage(BaseModel):
-    """Message. Contains a meta field for any additional data
-    if the message comes from the api"""
-
-    id: str | None = Field(..., exclude=True)
+    id: str = Field(default_factory=uuid.uuid4)
     role: Role
     content: str
     name: str | None = None
-    tool_calls: list[ToolCall] | None = None
+    tool_calls: List[LlToolCall] | None = None
     meta: LLMessageMeta | None = None
 
-    # add the id if none is set
-    @field_validator("id")
     @classmethod
-    def add_id(cls, v: str | None) -> str:
-        """Add a uuid if none is set"""
-        return v or str(uuid.uuid4())
-
-
-class LLChoice(BaseModel):
-    """Choice - one item in the choices list in the completion"""
-
-    message: OaiMessage
-    meta: dict[str, Any] | None = Field(exclude=True)
-
-    def __init__(self, message: LLMessage, **kwargs: Any) -> None:
-        super().__init__(
-            meta=kwargs,
-            message=message,
+    def from_execution(cls, execution: ToolResponse) -> Self:
+        return cls(
+            role="tool",
+            id=execution.id,
+            name=execution.name,
+            content=execution.result,
         )
 
 
-class LLCompletion(BaseModel):
-    """Completion - the response from the api"""
+class LLUserMessage(LLMessage):
+    role: Role = "user"
 
+
+class LLSystemMessage(LLMessage):
+    role: Role = "system"
+
+
+class LLAssistantMessage(LLMessage):
+    role: Role = "assistant"
+
+
+class LLToolMessage(LLMessage):
+    role: Role = "tool"
+
+
+class LLCompletion(BaseModel):
     message: LLMessage
     meta: LLMessageMeta | None = None
 
     @classmethod
     def from_completion(cls, completion: OaiCompletion) -> Self:
-        """Create a Message from an OaiCompletion"""
-        completion_dict: dict[str, Any] = completion.model_dump()
-        choice: LLChoice = LLChoice(**completion_dict.pop("choices")[0])
-        if not choice:
-            raise ValueError("No choices in completion")
-
-        # check tool calls
-        tool_calls: list[ToolCall] = []
-        message: OaiMessage = choice.message
-        if not message:
-            raise ValueError("No message in completion")
+        choice = completion.choices[0]
+        message = choice.message
+        tool_calls = None
         if message.tool_calls:
-            tool_calls: list[ToolCall] = [
-                ToolCall(
-                    id=tool_call.id,
-                    name=tool_call.function.name,
-                    arguments=tool_call.function.arguments,
-                )
-                for tool_call in message.tool_calls
+            tool_calls = [
+                LlToolCall.from_oai_tool_call(tc) for tc in message.tool_calls
             ]
+
         return cls(
             message=LLMessage(
                 id=completion.id,
                 meta=LLMessageMeta(
-                    choice=choice.meta,
-                    completion=completion_dict,
+                    choice=choice.model_dump(exclude={"message"}),
+                    completion=completion.model_dump(exclude={"choices"}),
                 ),
                 role=message.role,
                 content=message.content or "",
@@ -123,14 +112,21 @@ class LLCompletion(BaseModel):
         )
 
 
+class OaiRequest(BaseModel):
+    messages: list[OaiRequestMessage]
+    tools: list[OaiToolParam]
+
+
 __all__ = [
-    "ToolCall",
-    "OaiToolParam",
-    "OaiMessage",
-    "OaiToolCall",
-    "OaiChoice",
-    "ToolResponse",
     "LLMessage",
-    "LLChoice",
+    "LLToolMessage",
+    "LLUserMessage",
+    "LLSystemMessage",
+    "LLAssistantMessage",
     "LLCompletion",
+    "OaiCompletion",
+    "OaiToolParam",
+    "OaiToolFunction",
+    "OaiResponseMessage",
+    "OaiToolCall",
 ]

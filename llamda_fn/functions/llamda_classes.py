@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Generic, TypeVar
+from typing import Any, Callable, Dict, Generic, TypeVar, Type
 from pydantic import BaseModel, Field, create_model, ConfigDict
 
 from llamda_fn.llms import OaiToolParam
@@ -6,18 +6,33 @@ from llamda_fn.llms import OaiToolParam
 R = TypeVar("R")
 
 
-class LlamdaBase(BaseModel, Generic[R]):
+class LlamdaCallable(Generic[R]):
+    def run(self, **kwargs: Any) -> R:
+        raise NotImplementedError
+
+    def to_tool_schema(self) -> OaiToolParam:
+        raise NotImplementedError
+
+    @classmethod
+    def create(
+        cls,
+        call_func: Callable[..., R],
+        fields: Dict[str, tuple[type, Any]],
+        name: str = "",
+        description: str = "",
+        **kwargs: Any,
+    ) -> "LlamdaCallable[R]":
+        raise NotImplementedError
+
+
+class LlamdaBase(BaseModel, LlamdaCallable[R]):
     """The base class for Llamda functions."""
 
     name: str
     description: str
-    call_func: Callable[..., Any]
+    call_func: Callable[..., R]
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def run(self, **kwargs: Any) -> Any:
-        """Run the Llamda function with the given parameters."""
-        raise NotImplementedError
 
     def to_schema(self) -> Dict[str, Any]:
         """Get the JSON schema for the Llamda function."""
@@ -34,7 +49,7 @@ class LlamdaBase(BaseModel, Generic[R]):
                 "parameters": {
                     "type": "object",
                     "properties": schema["properties"],
-                    "required": schema["required"],
+                    "required": schema.get("required", []),
                 },
             },
         }
@@ -43,15 +58,16 @@ class LlamdaBase(BaseModel, Generic[R]):
 class LlamdaFunction(LlamdaBase[R]):
     """A Llamda function that uses a simple function model as the input."""
 
-    parameter_model: type[BaseModel]
+    parameter_model: Type[BaseModel]
 
     @classmethod
     def create(
         cls,
-        name: str,
+        call_func: Callable[..., R],
         fields: Dict[str, tuple[type, Any]],
-        description: str,
-        call_func: Callable[..., Any],
+        name: str = "",
+        description: str = "",
+        **kwargs: Any,
     ) -> "LlamdaFunction[R]":
         """Create a new LlamdaFunction from a function."""
         model_fields = {}
@@ -70,7 +86,7 @@ class LlamdaFunction(LlamdaBase[R]):
             call_func=call_func,
         )
 
-    def run(self, **kwargs: Any) -> Any:
+    def run(self, **kwargs: Any) -> R:
         """Run the LlamdaFunction with the given parameters."""
         validated_params = self.parameter_model(**kwargs)
         return self.call_func(**validated_params.model_dump())
@@ -86,48 +102,27 @@ class LlamdaFunction(LlamdaBase[R]):
 class LlamdaPydantic(LlamdaBase[R]):
     """A Llamda function that uses a Pydantic model as the input."""
 
-    model: type[BaseModel]
+    model: Type[BaseModel]
 
     @classmethod
     def create(
-        cls,
-        name: str,
-        model: type[BaseModel],
-        description: str,
-        call_func: Callable[..., Any],
+        cls, name: str, model: Type[BaseModel], description: str, func: Callable[..., R]
     ) -> "LlamdaPydantic[R]":
-        """Create a new LlamdaPydantic from a Pydantic model."""
         return cls(
             name=name,
             description=description,
             model=model,
-            call_func=call_func,
+            call_func=func,
         )
 
-    def run(self, **kwargs: Any) -> Any:
+    def run(self, **kwargs: Any) -> R:
         """Run the LlamdaPydantic with the given parameters."""
         validated_params = self.model(**kwargs)
         return self.call_func(validated_params)
 
-    def to_schema(self) -> Dict[str, Any]:
+    def to_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the LlamdaPydantic."""
         schema = self.model.model_json_schema()
         schema["title"] = self.name
         schema["description"] = self.description
         return schema
-
-    def to_tool_schema(self) -> OaiToolParam:
-        """Get the tool schema for the LlamdaPydantic."""
-        schema: Dict[str, Any] = self.to_schema()
-        return {
-            "type": "function",
-            "function": {
-                "name": schema["title"],
-                "description": schema["description"],
-                "parameters": {
-                    "type": "object",
-                    "properties": schema["properties"],
-                    "required": schema.get("required", []),
-                },
-            },
-        }

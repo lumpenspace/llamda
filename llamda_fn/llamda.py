@@ -1,23 +1,19 @@
-"""
-Llamda class to create, decorate, and run Llamda functions.
-"""
-
 from typing import Any, Callable, List, Optional, Sequence
-from pdb import set_trace as debugger
 from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 
 from llamda_fn.llms.api_types import (
-    OaiToolParam,
     LLMessage,
-    ToolCall,
+    LlToolCall,
     ToolResponse,
-    OaiMessage,
-    OaiChatCompletion,
+    LLCompletion,
+    LLToolMessage,
+    OaiToolParam,
 )
 
 from llamda_fn.functions import LlamdaFunctions
 from llamda_fn.llms.llm_manager import LLManager
-from llamda_fn.exchanges import Exchange
+from llamda_fn.llms.exchange import Exchange
+from llamda_fn.llms.type_transformers import ll_to_oai_message
 
 
 class Llamda:
@@ -31,7 +27,6 @@ class Llamda:
         **kwargs: Any,
     ):
         self.api = LLManager(**kwargs)
-
         self.functions: LlamdaFunctions = LlamdaFunctions()
         self.exchange = Exchange(system_message=system_message)
 
@@ -58,48 +53,42 @@ class Llamda:
         Run the OpenAI API with the prepared data.
         """
         current_exchange: Exchange = exchange or self.exchange
-        request: dict[str, Any] = {
-            "model": llm_name or self.api.llm_name,
-            "messages": current_exchange,
-        }
-        tools: Sequence[OaiToolParam] = self.functions.get(tool_names)
-        if tools:
-            request["tools"] = tools
 
-        message: LLMessage = OaiChatCompletion(self.api.chat_completion(**request))
+        ll_completion: LLCompletion = self.api.chat_completion(
+            messages=[
+                ll_to_oai_message(msg, llm_name or self.api.llm_name)
+                for msg in current_exchange
+            ],
+            tools=self.functions.get(tool_names),
+        )
 
-        current_exchange.append(message)
-        if message.tool_calls:
-            tool_calls: List[ToolCall] = message.tool_calls
-            self._handle_tool_calls(tool_calls, current_exchange)
+        current_exchange.append(ll_completion.message)
+        if ll_completion.message.tool_calls:
+            self._handle_tool_calls(ll_completion.message.tool_calls, current_exchange)
 
         return current_exchange[-1]
 
     def _handle_tool_calls(
-        self, tool_calls: List[ToolCall], exchange: Exchange
+        self, tool_calls: List[LlToolCall], exchange: Exchange
     ) -> None:
-        """
-        Handle tool calls concurrently and update the exchange.
-        """
-        execution_results: list[ToolResponse] = []
+        execution_results: List[ToolResponse] = []  # Change list to List
         with ThreadPoolExecutor() as executor:
-            futures: list[Future[ToolResponse]] = []
+            futures: List[Future[ToolResponse]] = []  # Change list to List
             for tool_call in tool_calls:
                 futures.append(executor.submit(self._process_tool_call, tool_call))
 
             for future in as_completed(futures):
                 result: ToolResponse = future.result()
                 execution_results.append(result)
-                exchange.append(result)
+                exchange.append(LLToolMessage.from_execution(result))
 
         self.run(exchange=exchange)
 
-    def _process_tool_call(self, tool_call: ToolCall) -> ToolResponse:
+    def _process_tool_call(self, tool_call: LlToolCall) -> ToolResponse:
         """
         Process a single tool call and return the result.
         """
-        result: ToolResponse = self.functions.execute_function(tool_call=tool_call)
-        return result
+        return self.functions.execute_function(tool_call=tool_call)
 
     def send_message(self, message: str) -> LLMessage:
         """
@@ -109,4 +98,4 @@ class Llamda:
         return self.run()
 
 
-__all__: list[str] = ["Llamda"]
+__all__: List[str] = ["Llamda"]  # Change list to List

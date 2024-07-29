@@ -1,11 +1,8 @@
-"""
-Exchange class to represent a series of messages between a user and an assistant.
-"""
+from llamda_fn.llms.api_types import LLMessage
+
 
 from collections import UserList
-from typing import List, Literal, Optional
-from llamda_fn.llms import api_types as AT
-from llamda_fn.llms.api_types import LLMessage
+from typing import List, Optional
 
 
 class Exchange(UserList[LLMessage]):

@@ -1,15 +1,11 @@
-"""Validate the LLM API and model."""
-
 from typing import Any
 from pydantic import Field, model_validator
 from openai import OpenAI
-from .api_types import ChatCompletion
+from .api_types import LLCompletion, LLMessage, OaiCompletion
 from .api import LlmApiConfig
 
 
 class LLManager(OpenAI):
-    """Validate the LLM API and model."""
-
     api_config: dict[str, Any] = Field(default_factory=dict)
     llm_name: str = Field(default="gpt-4-0613")
 
@@ -22,24 +18,26 @@ class LLManager(OpenAI):
         super().__init__(**kwargs)
 
     class Config:
-        """
-        Config for the Llamda class.
-        """
-
         arbitrary_types_allowed = True
 
-    def chat_completion(self, **kwargs: Any) -> ChatCompletion:
-        """
-        Override the chat.completions.create method.
-        """
-        return ChatCompletion.from_openai(super().chat.completions.create(**kwargs))
+    def chat_completion(self, messages: list[LLMessage], **kwargs: Any) -> LLCompletion:
+
+        oai_completion: OaiCompletion = super().chat.completions.create(
+            **kwargs,
+            messages=[
+                {
+                    "role": msg.role,
+                    "content": msg.content,
+                    "tool_calls": [tool_call for tool_call in msg.tool_calls or []],
+                }
+                for msg in messages
+            ],
+        )
+        return LLCompletion.from_completion(oai_completion)
 
     @model_validator(mode="before")
     @classmethod
     def validate_api_and_model(cls, data: dict[str, Any]) -> dict[str, Any]:
-        """
-        Validate the API and model.
-        """
         api_config = data.get("api_config") or {}
         api = (
             data.get("api")
@@ -61,6 +59,3 @@ class LLManager(OpenAI):
             raise ValueError("No LLM API client or LLM name provided.")
 
         return data
-
-
-__all__: list[str] = ["LLManager"]
