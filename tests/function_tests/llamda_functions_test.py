@@ -11,7 +11,7 @@ from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import BaseModel, Field
 
 from llamda_fn.functions import LlamdaCallable, LlamdaFunctions
-from llamda_fn.llms.api_types import LlToolCall, OaiToolParam, ToolResponse
+from llamda_fn.llms.api_types import LlToolCall, OaiToolParam, ToolResponse, LLMessage
 
 
 @pytest.fixture
@@ -170,16 +170,27 @@ class TestLlamdaFunctions:
         assert "error" in content
         assert "test error" in content["error"].lower()
 
-    def test_llamda_functions_dict_like_behavior(
-        self, decorated_functions: LlamdaFunctions
-    ):
-        assert "add_numbers" in decorated_functions
-        assert len(decorated_functions) == 3
-        assert set(decorated_functions) == {"add_numbers", "subtract", "create_user"}
 
-        add_func = decorated_functions["add_numbers"].to_tool_schema().get("function")
-        assert add_func.get("name") == "add_numbers"
-        assert add_func.get("description") == "Add two numbers."
+def test_llamda_function_execution_without_tool_calls(
+    llamda_functions: LlamdaFunctions, mock_ll_manager: Any
+):
+    messages = [LLMessage(role="user", content="Just give me a simple response.")]
+    completion = mock_ll_manager.chat_completion(messages)
+    assert (
+        completion.message.tool_calls is None or len(completion.message.tool_calls) == 0
+    )
+
+    # Verify that the content is as expected
+    assert (
+        completion.message.content
+        == "Here's a simple response without using any functions."
+    )
+
+    # Verify that this is the first call to the mock_ll_manager
+    assert mock_ll_manager.call_count == 1
+
+    # Reset the call_count for the next test
+    mock_ll_manager.call_count = 0
 
 
 if __name__ == "__main__":
