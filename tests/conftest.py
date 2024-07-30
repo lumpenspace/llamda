@@ -1,5 +1,4 @@
 import pytest
-from typing import List
 from llamda_fn.functions import LlamdaFunctions
 from llamda_fn.llms.api_types import LLMessage, LLCompletion, LLMessageMeta, LlToolCall
 

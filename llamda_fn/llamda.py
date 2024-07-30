@@ -1,5 +1,6 @@
 from typing import Any, Callable, List, Optional, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed, Future
+from llamda_fn.utils.logger import logger
 
 from llamda_fn.llms.api_types import (
     LLCompletion,
@@ -21,12 +22,12 @@ class Llamda:
 
     def __init__(
         self,
-        system_message: Optional[str] = None,
+        system: Optional[str] = None,
         **kwargs: Any,
     ):
         self.api = LLManager(**kwargs)
         self.functions: LlamdaFunctions = LlamdaFunctions()
-        self.exchange = Exchange(system_message=system_message)
+        self.exchange = Exchange(system=system)
 
     def fy(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
         """
@@ -53,11 +54,11 @@ class Llamda:
         current_exchange: Exchange = exchange or self.exchange
 
         ll_completion: LLCompletion = self.api.chat_completion(
-            messages=[*current_exchange],
+            messages=current_exchange,
             llm_name=llm_name or self.api.llm_name,
             tools=self.functions.get(tool_names),
         )
-
+        logger.msg(ll_completion.message)
         current_exchange.append(ll_completion.message)
         if ll_completion.message.tool_calls:
             self._handle_tool_calls(ll_completion.message.tool_calls)
@@ -65,28 +66,35 @@ class Llamda:
         return current_exchange[-1]
 
     def _handle_tool_calls(self, tool_calls: List[LlToolCall]) -> None:
-        with ThreadPoolExecutor() as executor:
-            futures: List[Future[ToolResponse]] = []  # Change list to List
-            for tool_call in tool_calls:
-                futures.append(executor.submit(self._process_tool_call, tool_call))
 
+        tool_log = logger.tools(tool_calls)
+        with ThreadPoolExecutor() as executor:
+            futures: List[Future[ToolResponse]] = [
+                executor.submit(self._process_tool_call, tool_call, tool_log)
+                for tool_call in tool_calls
+            ]
             for future in as_completed(futures):
                 result: ToolResponse = future.result()
                 self.exchange.append(LLMessage.from_execution(result))
-
         self.run()
 
-    def _process_tool_call(self, tool_call: LlToolCall) -> ToolResponse:
+    def _process_tool_call(
+        self,
+        tool_call: LlToolCall,
+        tool_log: Callable[[LlToolCall, ToolResponse], None],
+    ) -> ToolResponse:
         """
         Process a single tool call and return the result.
         """
-        return self.functions.execute_function(tool_call=tool_call)
+        result = self.functions.execute_function(tool_call=tool_call)
+        tool_log(tool_call, result)
+        return result
 
-    def send_message(self, message: str) -> LLMessage:
+    def __call__(self, text: str) -> LLMessage:
         """
         Send a message and get a response.
         """
-        self.exchange.ask(message)
+        self.exchange.ask(text)
         return self.run()
 
 

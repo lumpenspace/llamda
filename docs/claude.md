@@ -62,7 +62,7 @@ Files for working with LLMs.
 ```{eval-rst}
 .. include:: ../llamda_fn/functions/llamda_functions.py
 ```
-
+<!-- 
 ## tests/functions_tests
 
 ###  llamda_functions_test.py
@@ -77,20 +77,22 @@ Files for working with LLMs.
 .. include:: ../tests/function_tests/llamda_classes_test.py
 ```
 
-###  llamda_classes_test.py
+### llamda_classes_test.py
 
 ```{eval-rst}
 .. include:: ../tests/function_tests/llamda_functions_test.py
-```
+``` -->
 
-## test results
-
-```{eval-rst}
-.. include:: ../DEBUG
-```
-
-## coverage
+## examples
 
 ```{eval-rst}
-.. include:: ../COV
+.. include:: ../examples/__main__.py
 ```
+
+### latest run
+
+
+```{eval-rst}
+.. include:: ../OUT
+```
+

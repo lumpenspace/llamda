@@ -1,8 +1,8 @@
-from llamda_fn.llms.api_types import LLMessage
-
+from llamda_fn.llms.api_types import LLMessage, Role
+from llamda_fn.utils.logger import logger
 
 from collections import UserList
-from typing import List, Optional
+from typing import Any, List, Optional
 
 
 class Exchange(UserList[LLMessage]):
@@ -12,29 +12,26 @@ class Exchange(UserList[LLMessage]):
 
     def __init__(
         self,
-        system_message: Optional[str] = None,
+        system: Optional[str] = None,
         messages: Optional[List[LLMessage]] = None,
     ) -> None:
-        """
-        Initialize the exchange.
-        """
         super().__init__()
-        if system_message:
-            self.data.append(LLMessage(content=system_message, role="system"))
+        if system:
+            self.append(LLMessage(content=system, role=Role["system"]))
         if messages:
-            self.data.extend(messages)
+            for message in messages:
+                if not message.role:
+                    raise ValueError(f"Message missing role: {message}")
+                self.append(message)
 
-    def ask(self, content: str) -> None:
-        """
-        Add a user message to the exchange.
-        """
-        self.data.append(LLMessage(content=content, role="user"))
+    def ask(self, text: str) -> None:
+        self.data.append(LLMessage(role="user", content=text))
 
     def append(self, item: LLMessage) -> None:
         """
         Add a message to the exchange.
         """
-
+        logger.msg(item)
         self.data.append(item)
 
     def get_context(self, n: int = 5) -> list[LLMessage]:

@@ -1,0 +1,12 @@
+Exception: 'str' object has no attribute 'role'
+
+Traceback:
+Traceback (most recent call last):
+  File "/Users/claudiobrandolino/llamda/llamda-fn/examples/play.py", line 36, in go
+    ll.send_message("hello")
+  File "/Users/claudiobrandolino/llamda/llamda-fn/llamda_fn/llamda.py", line 99, in send_message
+    logger.msg(message)
+  File "/Users/claudiobrandolino/llamda/llamda-fn/llamda_fn/utils/logger.py", line 43, in msg
+    role, content = msg.role, msg.content
+                    ^^^^^^^^
+AttributeError: 'str' object has no attribute 'role'

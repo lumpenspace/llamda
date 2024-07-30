@@ -1,3 +1,4 @@
+from ast import Dict
 import uuid
 from functools import cached_property
 from typing import Any, Literal, Self, List
@@ -56,33 +57,14 @@ def make_oai_role_message(
     name: str | None = None,
     tool_calls: List[LlToolCall] | None = None,
     **kwargs: Any,
-) -> OaiUserMessage | OaiSystemMessage | OaiAssistantMessage:
-    kwargs = {}
+) -> OaiRequestMessage:
+    message = {
+        "role": role,
+        "content": content,
+    }
     if name:
-        kwargs["name"] = name
-    match role:
-        case "user":
-            return OaiUserMessage(
-                content=content,
-                **kwargs,
-            )
-        case "system":
-            return OaiSystemMessage(
-                content=content,
-                **kwargs,
-            )
-        case "assistant":
-
-            if tool_calls:
-                kwargs["tool_calls"] = [
-                    tool_call.model_dump() for tool_call in tool_calls
-                ]
-            return OaiAssistantMessage(
-                content=content,
-                **kwargs,
-            )
-        case _:
-            raise ValueError(f"Invalid role: {role}")
+        message["name"] = name
+    return message
 
 
 OaiRoleMessage: dict[
@@ -101,16 +83,23 @@ class LLMessageMeta(BaseModel):
 
 class LLMessage(BaseModel):
     id: str = Field(default_factory=uuid.uuid4)
-    role: Role
+    role: Role = "user"
     content: str
     name: str | None = None
     tool_calls: List[LlToolCall] | None = None
     meta: LLMessageMeta | None = None
 
     def get_oai_message(self):
-        return make_oai_role_message(
-            self.role, self.content, self.name, self.tool_calls
-        )
+        return {
+            "role": self.role,
+            "content": self.content,
+            "name": self.name,
+            "tool_calls": (
+                [tool_call.model_dump() for tool_call in [*self.tool_calls]]
+                if self.tool_calls
+                else None
+            ),
+        }
 
     @classmethod
     def from_execution(cls, execution: ToolResponse) -> Self:
