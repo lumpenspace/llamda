@@ -4,7 +4,9 @@ These classes provide the foundation for creating and managing Llamda functions,
 including abstract methods for execution and schema generation.
 """
 
+from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Generic, TypeVar
+
 from pydantic import BaseModel, ConfigDict
 
 from llamda_fn.llms.oai_api_types import OaiToolSpec
@@ -14,12 +16,13 @@ R = TypeVar("R")
 __all__ = ["LlamdaCallable"]
 
 
-class LlamdaCallable(Generic[R]):
+class LlamdaCallable(Generic[R], ABC):
     """
     Represents a callable to proxy the original Function or model internally.
     This abstract base class defines the interface for Llamda functions.
     """
 
+    @abstractmethod
     def run(self, **kwargs: Any) -> R:
         """
         Execute the Llamda function with the given parameters.
@@ -31,8 +34,9 @@ class LlamdaCallable(Generic[R]):
         Returns:
             The result of the function execution.
         """
-        raise NotImplementedError
+        pass
 
+    @abstractmethod
     def to_tool_schema(self) -> OaiToolSpec:
         """
         Convert the Llamda function to a tool schema compatible with OpenAI's API.
@@ -41,9 +45,10 @@ class LlamdaCallable(Generic[R]):
         Returns:
             A dictionary representing the OpenAI tool specification.
         """
-        raise NotImplementedError
+        pass
 
     @classmethod
+    @abstractmethod
     def create(
         cls,
         call_func: Callable[..., R],
@@ -64,7 +69,7 @@ class LlamdaCallable(Generic[R]):
         Returns:
             A new instance of LlamdaCallable.
         """
-        raise NotImplementedError
+        pass
 
 
 class LlamdaBase(BaseModel, LlamdaCallable[R]):

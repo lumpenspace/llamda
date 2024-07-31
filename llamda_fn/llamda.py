@@ -1,11 +1,10 @@
 from typing import Any, Callable, List, Optional, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed, Future
-from llamda_fn.llms import ll_tool
-from llamda_fn.llms.ll_tool import LLToolResponse, LlToolCall
+from llamda_fn.llms.ll_tool import LLToolResponse, LLToolCall
 from llamda_fn.llms.ll_message import LLMessage
 from llamda_fn.utils.logger import LOG
 
-from llamda_fn.llms.oai_api_types import OaiToolSpec, OaiToolCall
+from llamda_fn.llms.oai_api_types import OaiToolSpec
 
 
 from llamda_fn.functions import LlamdaFunctions
@@ -20,9 +19,12 @@ class Llamda:
 
     def __init__(
         self,
-        system: Optional[str] = None,
+        system: Optional[str | LLMessage] = None,
+        max_consecutive_tool_calls: int = 0,
         **kwargs: Any,
     ):
+        self.max_consecutive_tool_calls: int = max_consecutive_tool_calls
+
         self.api = LLManager(**kwargs)
         self.functions: LlamdaFunctions = LlamdaFunctions()
         self.exchange = LLExchange(system=system)
@@ -38,7 +40,7 @@ class Llamda:
         """
         Get the tools available to the Llamda instance.
         """
-        return self.functions.get()
+        return self.functions.spec
 
     def run(
         self,
@@ -54,7 +56,7 @@ class Llamda:
         ll_completion: LLMessage = self.api.query(
             messages=current_exchange,
             llm_name=llm_name or self.api.llm_name,
-            tools=self.functions.get(tool_names),
+            tools=self.functions.tools,
         )
         LOG.msg(ll_completion)
         current_exchange.append(ll_completion)
@@ -63,7 +65,7 @@ class Llamda:
 
         return current_exchange[-1]
 
-    def _handle_tool_calls(self, tool_calls: Sequence[LlToolCall]) -> None:
+    def _handle_tool_calls(self, tool_calls: Sequence[LLToolCall]) -> None:
 
         tool_log = LOG.tools(tool_calls)
         with ThreadPoolExecutor() as executor:
@@ -73,18 +75,18 @@ class Llamda:
             ]
             for future in as_completed(futures):
                 result: LLToolResponse = future.result()
-                self.exchange.append(result.oai)
+                self.exchange.append(LLMessage.from_tool_response(result))
         self.run()
 
     def _process_tool_call(
         self,
-        tool_call: LlToolCall,
-        tool_log: Callable[[LlToolCall, LLToolResponse], None],
+        tool_call: LLToolCall,
+        tool_log: Callable[[LLToolCall, LLToolResponse], None],
     ) -> LLToolResponse:
         """
         Process a single tool call and return the result.
         """
-        result = self.functions.execute_function(tool_call=tool_call)
+        result: LLToolResponse = self.functions.execute_function(tool_call=tool_call)
         tool_log(tool_call, result)
         return result
 

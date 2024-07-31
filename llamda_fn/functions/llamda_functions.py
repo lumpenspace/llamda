@@ -22,7 +22,7 @@ from typing import (
 
 from pydantic import BaseModel, ValidationError
 
-from llamda_fn.llms.ll_tool import LlToolCall, LLToolResponse
+from llamda_fn.llms.ll_tool import LLToolCall, LLToolResponse
 from llamda_fn.llms.oai_api_types import OaiToolSpec
 
 from .llamda_callable import LlamdaBase, LlamdaCallable
@@ -126,7 +126,7 @@ class LlamdaFunctions:
             self._tools[name].to_tool_schema() for name in names if name in self._tools
         ]
 
-    def execute_function(self, tool_call: LlToolCall) -> LLToolResponse:
+    def execute_function(self, tool_call: LLToolCall) -> LLToolResponse:
         """
         Executes the function specified in the tool call with the required arguments.
 
@@ -134,7 +134,7 @@ class LlamdaFunctions:
         and returns appropriate error messages.
 
         Args:
-            tool_call: An LlToolCall object containing the function name and arguments.
+            tool_call: An LLToolCall object containing the function name and arguments.
 
         Returns:
             An LLToolResponse object containing the execution result or error information.

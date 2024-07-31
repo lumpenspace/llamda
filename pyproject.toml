@@ -23,6 +23,7 @@ sphinx = "^7.4.7"
 myst-parser = "^3.0.1"
 sphinx-jsonschema = "^1.19.1"
 coverage = "^7.6.0"
+pytest-asyncio = "^0.23.8"
 
 [tool.coverage.run]
 command_line = "-m pytest"

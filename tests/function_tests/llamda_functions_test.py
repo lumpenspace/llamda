@@ -9,7 +9,7 @@ from llamda_fn.functions import (
     LlamdaFunctions,
     LlamdaPydantic,
 )
-from llamda_fn.llms.ll_tool import LlToolCall
+from llamda_fn.llms.ll_tool import LLToolCall
 from pydantic import BaseModel
 
 
@@ -47,7 +47,7 @@ def test_execute_function():
     def add(a: int, b: int) -> int:
         return a + b
 
-    tool_call = LlToolCall(id="1", name="add", arguments='{"a": 2, "b": 3}')
+    tool_call = LLToolCall(id="1", name="add", arguments='{"a": 2, "b": 3}')
     response = lf.execute_function(tool_call)
 
     assert response.result == "5"

@@ -1,7 +1,7 @@
 import pytest
 from llamda_fn.functions import LlamdaFunctions
 from llamda_fn.llms.ll_message import LLMessage, LLMessageMeta
-from llamda_fn.llms.ll_tool import LlToolCall
+from llamda_fn.llms.ll_tool import LLToolCall
 
 
 class MockLLManager:
@@ -38,7 +38,7 @@ class MockLLManager:
                 role="assistant",
                 content="Sure, I can help you with that. Let's start by greeting someone.",
                 tool_calls=[
-                    LlToolCall(id="call_1", name="greet", arguments='{"name": "Alice"}')
+                    LLToolCall(id="call_1", name="greet", arguments='{"name": "Alice"}')
                 ],
                 meta=LLMessageMeta(
                     choice={
@@ -63,7 +63,7 @@ class MockLLManager:
                 role="assistant",
                 content="Great! Now let's do a calculation.",
                 tool_calls=[
-                    LlToolCall(id="call_2", name="add", arguments='{"x": 5, "y": 3}')
+                    LLToolCall(id="call_2", name="add", arguments='{"x": 5, "y": 3}')
                 ],
                 meta=LLMessageMeta(
                     choice={

@@ -6,7 +6,7 @@ from typing import Any, Self, Sequence
 
 from pydantic import BaseModel, Field
 
-from llamda_fn.llms.ll_tool import LLToolCall
+from llamda_fn.llms.ll_tool import LLToolCall, LLToolResponse
 from .oai_api_types import (
     OaiAssistantMessage,
     OaiMessage,
@@ -82,14 +82,22 @@ class LLMessage(BaseModel):
         return cls(**kwargs).oai_props
 
     @classmethod
+    def from_tool_response(cls, response: LLToolResponse) -> Self:
+        """A message containing the result"""
+        return cls(id=response.id, role="tool", content=response.result)
+
+    @classmethod
     def from_completion(cls, completion: OaiCompletion) -> Self:
         """Creates a Message from the first choice of an OpenAI-type completion request"""
 
         choice = completion.choices[0]
         message: OaiResponseMessage = choice.message
-        tool_calls = None
-        if message.tool_calls:
-            tool_calls = [LLToolCall.from_call(tc) for tc in message.tool_calls]
+
+        tool_calls: list[LLToolCall] = (
+            [LLToolCall.from_call(tc) for tc in message.tool_calls]
+            if message.tool_calls
+            else []
+        )
 
         return cls(
             id=completion.id,

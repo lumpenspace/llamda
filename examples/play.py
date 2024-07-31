@@ -1,5 +1,3 @@
-import subprocess
-import traceback
 from typing import List, Tuple
 
 
@@ -15,7 +13,6 @@ def go():
         """
     )
 
-    @ll.fy()
     def aq_multiple(input_strings: List[str]) -> List[Tuple[str, int]]:
         """
         Calculate the Alphanumeric Quabala (AQ) value for multiple strings.
@@ -27,8 +24,11 @@ def go():
             input_strings (List[str]): A list of strings to calculate AQ values for.
 
         Returns
-            List[Tuple[str, int]]: A list of tuples (original_string, aq_value) sorted by AQ value.
+            List[Tuple[str, int]]: A list of tuples (original_string, aq_value)
+            sorted by AQ value.
         """
         return sorted([(s, aq(s)) for s in input_strings], key=lambda x: x[1])
+
+    ll.fy(aq_multiple)
 
     return ll

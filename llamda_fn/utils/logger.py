@@ -43,8 +43,11 @@ class Logger:
         """toggles the live console"""
         self.l.set_live(Live()) if live else self.l.clear_live()
 
-    def msg(self, msg: LLMessage) -> None:
-        role, content = msg.role, msg.content
+    def msg(self, message: LLMessage | list[LLMessage]) -> None:
+        if isinstance(message, list):
+            [self.msg(item) for item in message]
+            return
+        role, content = message.role, message.content
         self.l.log(
             f"""[b]{emojis.get(str(role))}[/b]\t
             {emojis.get("message" if content else "thinking")} """

@@ -1,4 +1,4 @@
-"""LExchange"""
+"""LLExchange"""
 
 from collections import UserList
 from functools import cached_property
@@ -19,12 +19,16 @@ class LLExchange(UserList[LLMessage]):
 
     def __init__(
         self,
-        system: Optional[str] = None,
+        system: Optional[str | LLMessage] = None,
         messages: Optional[List[LLMessage]] = None,
     ) -> None:
         super().__init__()
         if system:
-            self.append(LLMessage(content=system, role="system"))
+            self.append(
+                LLMessage(content=system, role="system")
+                if isinstance(system, str)
+                else system
+            )
         if messages:
             for message in messages:
                 if not message.role:
@@ -41,8 +45,8 @@ class LLExchange(UserList[LLMessage]):
         """
         Add a message to the exchange.
         """
+        super().append(item)
         LOG.msg(item)
-        self.data.append(item)
 
     def get_context(self, n: int = 5) -> list[LLMessage]:
         """

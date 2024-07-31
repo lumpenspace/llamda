@@ -557,7 +557,7 @@ from llamda_fn.functions.llamda_classes import R
 
 from llamda_fn.llms.api_types import (
     LLMessage,
-    LlToolCall,
+    LLToolCall,
     ToolResponse,
     LLToolMessage,
     OaiToolParam,
@@ -625,7 +625,7 @@ class Llamda:
         return current_exchange[-1]
 
     def _handle_tool_calls(
-        self, tool_calls: List[LlToolCall], exchange: Exchange
+        self, tool_calls: List[LLToolCall], exchange: Exchange
     ) -> None:
         execution_results: list[ToolResponse] = []
         with ThreadPoolExecutor() as executor:
@@ -640,7 +640,7 @@ class Llamda:
 
         self.run(exchange=exchange)
 
-    def _process_tool_call(self, tool_call: LlToolCall) -> ToolResponse:
+    def _process_tool_call(self, tool_call: LLToolCall) -> ToolResponse:
         """
         Process a single tool call and return the result.
         """
@@ -672,7 +672,7 @@ from pydantic import BaseModel, Field, field_validator
 Role = Literal["user", "system", "assistant", "tool"]
 
 
-class LlToolCall(BaseModel):
+class LLToolCall(BaseModel):
     id: str
     name: str
     arguments: str
@@ -714,7 +714,7 @@ class LLMessage(BaseModel):
     role: Role
     content: str
     name: str | None = None
-    tool_calls: List[LlToolCall] | None = None
+    tool_calls: List[LLToolCall] | None = None
     meta: LLMessageMeta | None = None
 
     @field_validator("id")
@@ -758,7 +758,7 @@ class LLCompletion(BaseModel):
         tool_calls = None
         if message.tool_calls:
             tool_calls = [
-                LlToolCall.from_oai_tool_call(tc) for tc in message.tool_calls
+                LLToolCall.from_oai_tool_call(tc) for tc in message.tool_calls
             ]
 
         return cls(
@@ -897,7 +897,7 @@ from typing import Any
 from llamda_fn.llms.api_types import (
     LLMessage,
     LLCompletion,
-    LlToolCall,
+    LLToolCall,
     OaiResponseMessage,
     OaiCompletion,
     OaiToolCall,

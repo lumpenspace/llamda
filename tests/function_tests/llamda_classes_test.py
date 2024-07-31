@@ -1,6 +1,10 @@
+"""Testd for the LLamda base classes"""
+
+from typing import Any, Self
+
 import pytest
-from llamda_fn.functions.llamda_callable import LlamdaCallable, LlamdaBase
-from typing import Any
+
+from llamda_fn.functions.llamda_callable import LlamdaBase, LlamdaCallable
 
 
 def test_llamda_callable_abstract_methods():
@@ -14,7 +18,20 @@ def test_llamda_base_abstract_methods():
             return kwargs
 
         def to_schema(self) -> dict[str, Any]:
-            return {"type": "object"}
+            return {
+                "type": "object",
+                "title": self.name,  # Add this line
+                "description": self.description,  # Add this line
+                "properties": {},  # Add this line
+            }
+
+        @classmethod
+        def create(
+            cls, call_func: Any, name: str = "", description: str = "", **kwargs: Any
+        ):
+            return cls(
+                name=name, description=description, call_func=call_func, **kwargs
+            )
 
     test_base = TestLlamdaBase(
         name="test", description="test desc", call_func=lambda: None
