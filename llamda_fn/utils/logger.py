@@ -2,95 +2,70 @@
 This module contains the console utilities for the penger package.
 """
 
-from typing import Callable, Any
-from git import Sequence
+from typing import Sequence
+from contextlib import contextmanager
 from rich.console import Console
 from rich.live import Live
+from rich.panel import Panel
+from rich.table import Table
 from rich.json import JSON
-from llamda_fn.llms.ll_tool import LLToolResponse
-from llamda_fn.llms.ll_message import LLMessage
-
 from llamda_fn.llms.ll_tool import LLToolCall
-
-
-actions: dict[str, str] = {
-    "message": "💬",
-    "thinking": "💭",
-    "tool_call": "🔧",
-    "tool_response": "⚒️",
-    "tool_error": "☭",
-    "tool_waiting": "⏳",
-}
-
-emojis = {
-    "user": "🐈",
-    "assistant": "🐙",
-    "worker": "🧑🏼‍🔧",
-    "system": "📐",
-}
+from llamda_fn.llms.ll_message import LLMessage
 
 
 class Logger:
-    l: Console
-
     def __init__(self):
-        self.l = Console()
+        self.console = Console()
+        self.live = None
 
     def error(self, message: str) -> None:
-        self.l.log(f"❌ {message}")
+        self.console.print(f"[bold red]❌ Error:[/bold red] {message}")
 
-    def set_live(self, live: bool = False) -> None:
-        """toggles the live console"""
-        self.l.set_live(Live()) if live else self.l.clear_live()
+    @contextmanager
+    def live_logging(self):
+        with Live(console=self.console, auto_refresh=False) as live:
+            self.live = live
+            yield
+            self.live = None
 
-    def msg(self, message: LLMessage | list[LLMessage]) -> None:
-        if isinstance(message, list):
-            [self.msg(item) for item in message]
-            return
-        role, content = message.role, message.content
-        self.l.log(
-            f"""[b]{emojis.get(str(role))}[/b]\t
-            {emojis.get("message" if content else "thinking")} """
+    def msg(self, message: LLMessage) -> None:
+        role_emoji = {
+            "user": "🐈",
+            "assistant": "🐙",
+            "worker": "🧑🏼‍🔧",
+            "system": "📐",
+        }.get(str(message.role), "❓")
+
+        content_emoji = "💬" if message.content else "💭"
+
+        panel = Panel(
+            f"{content_emoji} {message.content}",
+            title=f"[bold]{role_emoji} {message.role.capitalize()}[/bold]",
+            border_style="blue",
         )
+        self.console.print(panel)
 
-    def log(self, *args: Any, **argv: Any):
-        self.l.log(*args, **argv)
+    def tool_calls(self, tool_calls: Sequence[LLToolCall]) -> None:
+        table = Table(title="Tool Calls", show_header=True, header_style="bold magenta")
+        table.add_column("Tool", style="dim")
+        table.add_column("Arguments")
+        table.add_column("Result")
+
+        for call in tool_calls:
+            result = self.functions.execute_function(tool_call=call)
+            table.add_row(
+                call.name, JSON.from_data(call.arguments), JSON.from_data(result.result)
+            )
+
+        self.console.print(table)
 
     @classmethod
-    def single(cls, logger: "Logger | None | Any") -> "Logger":
-        logger = globals().get("LOG")
-
-        if logger and isinstance(logger, cls):
-            return logger
-        return Logger()
-
-    def tools(
-        self, tool_calls: Sequence[LLToolCall]
-    ) -> Callable[[LLToolCall, LLToolResponse], None]:
-        calls: int = len(tool_calls)
-        done = 0
-        self.set_live()
-        self.l.log(f"🔧📎: {done}/{calls} tool calls detected.")
-
-        def ok(call: LLToolCall, tool_response: LLToolResponse) -> None:
-            nonlocal done
-            done += 1
-            self.l.log(f"🔧📎: {done}/{calls} tool calls detected.")
-
-            self.l.log(
-                f"""⚒️ {call.name}:
-            ➡️{self.l.log(call.arguments)}    
-            ⬅️➡️{JSON.from_data(tool_response.result)}"""
-            )
-            if done == calls:
-                self.l.log("----------")
-                self.l.log("All tool calls completed.")
-                self.set_live(False)
-
-        return ok
+    def get_instance(cls) -> "Logger":
+        if not hasattr(cls, "_instance"):
+            cls._instance = cls()
+        return cls._instance
 
 
-global LOG
-LOG: Logger = Logger.single(globals().get("LOG"))
+LOG = Logger.get_instance()
 
 __all__ = ["LOG"]

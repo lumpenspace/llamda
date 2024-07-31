@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator, ConfigDict
 from llamda_fn.llms.ll_exchange import LLExchange
 from llamda_fn.llms.oai_api_types import OaiClient, OaiException
 from llamda_fn.llms.ll_message import LLMessage
+from llamda_fn.utils import logger
 from .ll_api_config import LLApiConfig
 
 __all__ = ["LLManager"]
@@ -14,7 +15,7 @@ __all__ = ["LLManager"]
 class LLManager(BaseModel):
     """A client and manager for OAI-like LLM APIs"""
 
-    api_config: dict[str, Any] = Field(...)
+    api_config: dict[str, Any] = Field(default={})
     llm_name: str = Field(default="gpt-4o-mini")
     api: OaiClient
     _available_llms = []
@@ -46,17 +47,22 @@ class LLManager(BaseModel):
                     f"Unavailable LLM: {llm_name}",
                     "Available models are: {self._available_llms}",
                 )
-            return self.api.chat.completions.create(
-                messages=messages.oai_props,
-                model=llm_name or self.llm_name,
-                **kwargs,
+            return LLMessage.from_completion(
+                self.api.chat.completions.create(
+                    messages=messages.oai_props,
+                    model=llm_name or self.llm_name,
+                    **kwargs,
+                )
             )
         except Exception as e:
             raise OaiException(f"Error in chat completion: {str(e)}", messages) from e
 
-    @model_validator(mode="after")
-    def validate_api_and_llm(self, data: Any) -> Any:
+    @model_validator(mode="before")
+    @classmethod
+    def validate_api_and_llm(cls, data: Any) -> Any:
         """Validate the API and model."""
+
+        logger.LOG.console.log(f"data: {data}")
         api_config: Any | dict[Any, Any] = data.get("api_config") or {}
         api: Any | OaiClient = (
             data.get("api")
@@ -68,11 +74,9 @@ class LLManager(BaseModel):
 
         data.update({"api": api})
 
-        if not data.get("llm_name"):
-            raise ValueError("No LLM API client or LLM name provided.")
-
         available_models: list[str] = [model.id for model in api.models.list()]
-        self._available_llms: list[str] = available_models
+        cls._available_llms: list[str] = available_models
+        data.update({"_available_llms": available_models})
         if data.get("llm_name") not in available_models:
             raise ValueError(
                 f"Model '{data.get('llm_name')}' is not available. "

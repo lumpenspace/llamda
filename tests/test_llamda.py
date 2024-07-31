@@ -1,10 +1,12 @@
-import pytest
-from typing import TypeVar, Callable
+from typing import TypeVar
 from unittest.mock import Mock, patch
+
+import pytest
+
 from llamda_fn.llamda import Llamda
+from llamda_fn.llms.ll_exchange import LLExchange
 from llamda_fn.llms.ll_message import LLMessage
 from llamda_fn.llms.ll_tool import LLToolCall, LLToolResponse
-from llamda_fn.llms.ll_exchange import LLExchange
 
 T = TypeVar("T")
 

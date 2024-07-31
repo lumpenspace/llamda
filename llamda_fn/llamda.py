@@ -21,11 +21,12 @@ class Llamda:
         self,
         system: Optional[str | LLMessage] = None,
         max_consecutive_tool_calls: int = 0,
+        llm_name: str = "gpt-4o-mini",
         **kwargs: Any,
     ):
         self.max_consecutive_tool_calls: int = max_consecutive_tool_calls
 
-        self.api = LLManager(**kwargs)
+        self.api = LLManager(llm_name=llm_name, **kwargs)
         self.functions: LlamdaFunctions = LlamdaFunctions()
         self.exchange = LLExchange(system=system)
 
@@ -53,24 +54,23 @@ class Llamda:
         """
         current_exchange: LLExchange = exchange or self.exchange
 
-        ll_completion: LLMessage = self.api.query(
-            messages=current_exchange,
-            llm_name=llm_name or self.api.llm_name,
-            tools=self.functions.tools,
-        )
-        LOG.msg(ll_completion)
-        current_exchange.append(ll_completion)
-        if ll_completion.tool_calls:
-            self._handle_tool_calls(ll_completion.tool_calls)
+        with LOG.live_logging():
+            ll_completion: LLMessage = self.api.query(
+                messages=current_exchange,
+                llm_name=llm_name or self.api.llm_name,
+                tools=self.functions.tools if self.functions.tools else None,
+            )
+            current_exchange.append(ll_completion)
+            if ll_completion.tool_calls:
+                self._handle_tool_calls(ll_completion.tool_calls)
 
         return current_exchange[-1]
 
     def _handle_tool_calls(self, tool_calls: Sequence[LLToolCall]) -> None:
-
-        tool_log = LOG.tools(tool_calls)
+        LOG.tool_calls(tool_calls)
         with ThreadPoolExecutor() as executor:
             futures: List[Future[LLToolResponse]] = [
-                executor.submit(self._process_tool_call, tool_call, tool_log)
+                executor.submit(self._process_tool_call, tool_call)
                 for tool_call in tool_calls
             ]
             for future in as_completed(futures):
@@ -78,16 +78,11 @@ class Llamda:
                 self.exchange.append(LLMessage.from_tool_response(result))
         self.run()
 
-    def _process_tool_call(
-        self,
-        tool_call: LLToolCall,
-        tool_log: Callable[[LLToolCall, LLToolResponse], None],
-    ) -> LLToolResponse:
+    def _process_tool_call(self, tool_call: LLToolCall) -> LLToolResponse:
         """
         Process a single tool call and return the result.
         """
         result: LLToolResponse = self.functions.execute_function(tool_call=tool_call)
-        tool_log(tool_call, result)
         return result
 
     def __call__(self, text: str) -> LLMessage:

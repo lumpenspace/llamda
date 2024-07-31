@@ -3,7 +3,6 @@
 import uuid
 from functools import cached_property
 from typing import Any, Self, Sequence
-
 from pydantic import BaseModel, Field
 
 from llamda_fn.llms.ll_tool import LLToolCall, LLToolResponse
@@ -18,7 +17,7 @@ from .oai_api_types import (
     OaiResponseMessage,
 )
 
-__all__ = ["LLMessageMeta", "LLMessage"]
+__all__: list[str] = ["LLMessageMeta", "LLMessage"]
 
 
 class LLMessageMeta(BaseModel):
@@ -42,17 +41,20 @@ class LLMessage(BaseModel):
     def oai_props(self) -> OaiMessage:
         """Rerutns the OpenAI API verison of a message"""
         kwargs: dict[Any, Any] = {}
+        print(f"kwargs: {kwargs}", self.role, self.model_dump())
         role = self.role
         if self.name:
             kwargs["name"] = self.name
         match role:
             case "user":
                 return OaiUserMessage(
+                    role="user",
                     content=self.content,
                     **kwargs,
                 )
             case "system":
                 return OaiSystemMessage(
+                    role="system",
                     content=self.content,
                     **kwargs,
                 )
@@ -62,6 +64,7 @@ class LLMessage(BaseModel):
                         tool_call.model_dump() for tool_call in self.tool_calls or []
                     ]
                 return OaiAssistantMessage(
+                    role="assistant",
                     content=self.content,
                     **kwargs,
                 )
