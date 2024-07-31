@@ -1,11 +1,18 @@
-from llamda_fn.llms.api_types import LLMessage, Role
-from llamda_fn.utils.logger import logger
+"""LExchange"""
 
 from collections import UserList
-from typing import Any, List, Optional
+from functools import cached_property
+from typing import List, Optional
+
+from llamda_fn.utils.logger import LOG
+
+from .ll_message import LLMessage
+from .oai_api_types import OaiMessage
+
+__all__: list[str] = ["LLExchange"]
 
 
-class Exchange(UserList[LLMessage]):
+class LLExchange(UserList[LLMessage]):
     """
     An exchange represents a series of messages between a user and an assistant.
     """
@@ -17,7 +24,7 @@ class Exchange(UserList[LLMessage]):
     ) -> None:
         super().__init__()
         if system:
-            self.append(LLMessage(content=system, role=Role["system"]))
+            self.append(LLMessage(content=system, role="system"))
         if messages:
             for message in messages:
                 if not message.role:
@@ -25,18 +32,27 @@ class Exchange(UserList[LLMessage]):
                 self.append(message)
 
     def ask(self, text: str) -> None:
+        """
+        Adds a user message to the exchange, by text.
+        """
         self.data.append(LLMessage(role="user", content=text))
 
     def append(self, item: LLMessage) -> None:
         """
         Add a message to the exchange.
         """
-        logger.msg(item)
+        LOG.msg(item)
         self.data.append(item)
 
     def get_context(self, n: int = 5) -> list[LLMessage]:
         """
         Get the last n messages as context.
+
+        Args:
+            n (int): The number of recent messages to return. Defaults to 5.
+
+        Returns:
+            list[LLMessage]: A list of the last n messages in the exchange.
         """
         return self.data[-n:]
 
@@ -45,3 +61,10 @@ class Exchange(UserList[LLMessage]):
         String representation of the exchange.
         """
         return "\n".join(f"{msg.role}: {msg.content}" for msg in self.data)
+
+    @cached_property
+    def oai_props(self) -> List[OaiMessage]:
+        """
+        The exchange as a list of messahes to use with OpenAI-like APIs.
+        """
+        return [message.oai_props for message in self.data]

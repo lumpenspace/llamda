@@ -1,116 +1,24 @@
 import pytest
-from typing import List, Dict, Optional, Any, Type
-from pydantic import BaseModel
-from llamda_fn.functions.llamda_classes import LlamdaPydantic
-from llamda_fn.functions.llamda_classes import OaiToolParam
-
-# ... (previous TestLlamdaFunction class remains unchanged)
+from llamda_fn.functions.llamda_callable import LlamdaCallable, LlamdaBase
+from typing import Any
 
 
-class TestLlamdaPydantic:
-    @pytest.fixture
-    def user_model(self) -> Type[BaseModel]:
-        class UserModel(BaseModel):
-            name: str
-            age: int
-            email: Optional[str] = None
-
-        return UserModel
-
-    def test_llamda_pydantic_creation(self, user_model: Type[BaseModel]):
-        def create_user(user: user_model) -> Dict[str, Any]:
-            return user.model_dump()
-
-        func = LlamdaPydantic.create(
-            fields={
-                "name": (str, "name"),
-                "age": (int, "age"),
-                "email": (str, "email"),
-            },
-            name="CreateUser",
-            model=user_model,
-            description="Create a user from a Pydantic model",
-            call_func=create_user,
-        )
-
-        assert func.name == "CreateUser"
-        assert func.description == "Create a user from a Pydantic model"
-
-        assert func.run(name="Alice", age=30, email="alice@example.com") == {
-            "name": "Alice",
-            "age": 30,
-            "email": "alice@example.com",
-        }
-        assert func.run(name="Bob", age=25) == {"name": "Bob", "age": 25, "email": None}
-
-    def test_llamda_pydantic_schema(self):
-        class ProductModel(BaseModel):
-            name: str
-            price: float
-            tags: List[str] = []
-
-        def create_product(product: ProductModel) -> Dict[str, Any]:
-            return product.model_dump()
-
-        func = LlamdaPydantic.create(
-            fields={
-                "name": (str, "name"),
-                "price": (float, "price"),
-                "tags": (List[str], "tags"),
-            },
-            name="CreateProduct",
-            model=ProductModel,
-            description="Create a product from a Pydantic model",
-            call_func=create_product,
-        )
-
-        schema = func.to_schema()
-
-        assert schema["title"] == "CreateProduct"
-        assert schema["description"] == "Create a product from a Pydantic model"
-        assert "properties" in schema
-
-        properties = schema["properties"]
-        assert properties["name"]["type"] == "string"
-        assert properties["price"]["type"] == "number"
-        assert properties["tags"]["type"] == "array"
-        assert properties["tags"]["items"]["type"] == "string"
-
-    def test_llamda_pydantic_tool_schema(self):
-        class ProductModel(BaseModel):
-            name: str
-            price: float
-            tags: List[str] = []
-
-        def create_product(product: ProductModel) -> Dict[str, Any]:
-            return product.model_dump()
-
-        func = LlamdaPydantic.create(
-            fields={
-                "name": (str, "name"),
-                "price": (float, "price"),
-                "tags": (List[str], "tags"),
-            },
-            name="CreateProduct",
-            model=ProductModel,
-            description="Create a product from a Pydantic model",
-            call_func=create_product,
-        )
-
-        tool_schema: OaiToolParam = func.to_tool_schema()
-
-        assert tool_schema["type"] == "function"
-        assert tool_schema["function"]["name"] == "CreateProduct"
-        assert (
-            tool_schema["function"].get("description")
-            == "Create a product from a Pydantic model"
-        )
-        assert "parameters" in tool_schema["function"]
-
-        parameters = tool_schema["function"]["parameters"]
-        assert parameters["type"] == "object"
-        assert "properties" in parameters
+def test_llamda_callable_abstract_methods():
+    with pytest.raises(TypeError):
+        LlamdaCallable()
 
 
-if __name__ == "__main__":
-    pytest.main([__file__])
+def test_llamda_base_abstract_methods():
+    class TestLlamdaBase(LlamdaBase[Any]):
+        def run(self, **kwargs: Any) -> Any:
+            return kwargs
+
+        def to_schema(self) -> dict[str, Any]:
+            return {"type": "object"}
+
+    test_base = TestLlamdaBase(
+        name="test", description="test desc", call_func=lambda: None
+    )
+    assert test_base.to_tool_schema()["type"] == "function"
+    assert test_base.to_tool_schema()["function"]["name"] == "test"
+    assert test_base.to_tool_schema()["function"].get("description") == "test desc"

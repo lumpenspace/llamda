@@ -5,12 +5,16 @@ from typing import Any, Optional
 import dotenv
 
 from pydantic import BaseModel, Field, field_validator
-from openai import OpenAI
+from .oai_api_types import OaiClient
 
 dotenv.load_dotenv()
 
+__all__: list[str] = [
+    "LLApiConfig",
+]
 
-class LlmApiConfig(BaseModel):
+
+class LLApiConfig(BaseModel):
     """
     Configuration for the LLM API.
     """
@@ -38,14 +42,11 @@ class LlmApiConfig(BaseModel):
             raise ValueError("API key is required when base_url is not provided")
         return v
 
-    def create_openai_client(self) -> OpenAI:
+    def create_openai_client(self) -> OaiClient:
         """
         Create and return an OpenAI client with the configured settings.
         """
-        config = {k: v for k, v in self.model_dump().items() if v is not None}
-        return OpenAI(**config)
-
-
-__all__: list[str] = [
-    "LlmApiConfig",
-]
+        config: dict[str, Any] = {
+            k: v for k, v in self.model_dump().items() if v is not None
+        }
+        return OaiClient(**config)

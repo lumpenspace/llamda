@@ -2,12 +2,15 @@
 This module contains the console utilities for the penger package.
 """
 
-from typing import Callable
+from typing import Callable, Any
+from git import Sequence
 from rich.console import Console
 from rich.live import Live
 from rich.json import JSON
+from llamda_fn.llms.ll_tool import LLToolResponse
+from llamda_fn.llms.ll_message import LLMessage
 
-from llamda_fn.llms.api_types import LLMessage, ToolResponse, LlToolCall
+from llamda_fn.llms.ll_tool import LLToolCall
 
 
 actions: dict[str, str] = {
@@ -36,28 +39,37 @@ class Logger:
     def error(self, message: str) -> None:
         self.l.log(f"❌ {message}")
 
-    def set_live(self, live_console: bool = False) -> None:
-        self.set_live(live_console)
+    def set_live(self, live: bool = False) -> None:
+        """toggles the live console"""
+        self.l.set_live(Live()) if live else self.l.clear_live()
 
     def msg(self, msg: LLMessage) -> None:
         role, content = msg.role, msg.content
         self.l.log(
-            f"""[b]{emojis.get(str(role))}[/b]\t\
+            f"""[b]{emojis.get(str(role))}[/b]\t
             {emojis.get("message" if content else "thinking")} """
         )
 
-    def log(self, *args, **argv):
+    def log(self, *args: Any, **argv: Any):
         self.l.log(*args, **argv)
 
+    @classmethod
+    def single(cls, logger: "Logger | None | Any") -> "Logger":
+        logger = globals().get("LOG")
+
+        if logger and isinstance(logger, cls):
+            return logger
+        return Logger()
+
     def tools(
-        self, tool_calls: list[LlToolCall]
-    ) -> Callable[[LlToolCall, ToolResponse], None]:
+        self, tool_calls: Sequence[LLToolCall]
+    ) -> Callable[[LLToolCall, LLToolResponse], None]:
         calls: int = len(tool_calls)
         done = 0
         self.set_live()
         self.l.log(f"🔧📎: {done}/{calls} tool calls detected.")
 
-        def ok(call: LlToolCall, tool_response: ToolResponse) -> None:
+        def ok(call: LLToolCall, tool_response: LLToolResponse) -> None:
             nonlocal done
             done += 1
             self.l.log(f"🔧📎: {done}/{calls} tool calls detected.")
@@ -75,10 +87,7 @@ class Logger:
         return ok
 
 
-global logger
-logger = None
+global LOG
+LOG: Logger = Logger.single(globals().get("LOG"))
 
-if not logger:
-    logger = Logger()
-
-__all__ = ["logger"]
+__all__ = ["LOG"]

@@ -1,6 +1,7 @@
 from typing import Any
 from llamda_fn.functions import LlamdaFunctions
-from llamda_fn.llms.api_types import LLMessage, ToolResponse, LlToolCall
+from llamda_fn.llms.ll_tool import LLToolResponse, LlToolCall
+from llamda_fn.llms.ll_message import LLMessage
 
 
 def test_llamda_function_execution_with_tool_calls(
@@ -17,7 +18,7 @@ def test_llamda_function_execution_with_tool_calls(
     assert completion.message.tool_calls is not None
     tool_call = LlToolCall(**completion.message.tool_calls[0].model_dump())
     result = llamda_functions.execute_function(tool_call)
-    assert isinstance(result, ToolResponse)
+    assert isinstance(result, LLToolResponse)
     assert result.result == '"Hello, Alice!"'
 
     # Second interaction: Calculate function
@@ -27,7 +28,7 @@ def test_llamda_function_execution_with_tool_calls(
     assert completion.message.tool_calls is not None
     tool_call = LlToolCall(**completion.message.tool_calls[0].model_dump())
     result = llamda_functions.execute_function(tool_call)
-    assert isinstance(result, ToolResponse)
+    assert isinstance(result, LLToolResponse)
     assert result.result == "8"
 
     # Verify the call count

@@ -1,8 +1,0 @@
-[MASTER]
-ignore-patterns=.*?_test.py
-
-[MESSAGES CONTROL]
-disable=no-docstrings
-
-[FORMAT]
-max-line-length=100

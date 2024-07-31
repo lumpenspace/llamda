@@ -1,45 +1,82 @@
+"""
+Defines the LlamdaFunctions class, which serves as a registry and manager
+for Llamda functions. It provides functionality to register, execute, and manage
+Llamda functions, including conversion of regular functions to Llamda functions
+and generation of OpenAI-compatible tool specifications.
+"""
+
 import json
-from inspect import Parameter, isclass, signature
+from functools import cached_property
+from inspect import Parameter, Signature, isclass, signature
 from typing import (
     Any,
     Callable,
     Dict,
+    Iterator,
     List,
     Optional,
-    TypeVar,
     ParamSpec,
     Sequence,
-    Iterator,
+    TypeVar,
 )
 
 from pydantic import BaseModel, ValidationError
-from llamda_fn.llms.api_types import LlToolCall, ToolResponse, OaiToolParam
-from .llamda_classes import LlamdaFunction, LlamdaPydantic, LlamdaCallable
+
+from llamda_fn.llms.ll_tool import LlToolCall, LLToolResponse
+from llamda_fn.llms.oai_api_types import OaiToolSpec
+
+from .llamda_callable import LlamdaBase, LlamdaCallable
+from .llamda_function import LlamdaFunction
+from .llamda_pydantic import LlamdaPydantic
 
 R = TypeVar("R")
 P = ParamSpec("P")
 
+__all__ = ["LlamdaFunctions"]
+
 
 class LlamdaFunctions:
+    """
+    A registry and manager for Llamda functions.
+    This class provides methods to register, execute, and manage Llamda functions.
+    """
+
     def __init__(self) -> None:
-        self._tools: Dict[str, LlamdaCallable[Any]] = {}
+        self._tools: Dict[str, LlamdaBase[Any]] = {}
 
     @property
-    def tools(self) -> Dict[str, LlamdaCallable[Any]]:
+    def tools(self) -> Dict[str, LlamdaBase[Any]]:
+        """
+        Returns a dictionary of all registered Llamda functions.
+        """
         return self._tools
 
     def llamdafy(
         self,
         name: Optional[str] = None,
         description: Optional[str] = None,
-    ) -> Callable[[Callable[P, R]], LlamdaCallable[R]]:
-        def decorator(func: Callable[P, R]) -> LlamdaCallable[R]:
+    ) -> Callable[[Callable[P, R]], LlamdaBase[R]]:
+        """
+        A decorator to convert a regular function into a Llamda function.
+
+        This method analyzes the function signature and creates either a LlamdaPydantic
+        or LlamdaFunction instance based on the input parameters.
+
+        Args:
+            name: Optional custom name for the Llamda function.
+            description: Optional description for the Llamda function.
+
+        Returns:
+            A decorator that converts the function into a LlamdaCallable.
+        """
+
+        def decorator(func: Callable[P, R]) -> LlamdaBase[R]:
             func_name: str = name or func.__name__
             func_description: str = description or func.__doc__ or ""
 
-            sig = signature(func)
+            sig: Signature = signature(func)
             if len(sig.parameters) == 1:
-                param = next(iter(sig.parameters.values()))
+                param: Parameter = next(iter(sig.parameters.values()))
                 if isclass(param.annotation) and issubclass(
                     param.annotation, BaseModel
                 ):
@@ -71,8 +108,17 @@ class LlamdaFunctions:
 
         return decorator
 
-    def get(self, names: Optional[List[str]] = None) -> Sequence[OaiToolParam]:
-        """Returns the tool spec for some or all of the functions in the registry"""
+    @cached_property
+    def spec(self, names: Optional[List[str]] = None) -> Sequence[OaiToolSpec]:
+        """
+        Returns the tool spec for some or all of the functions in the registry.
+
+        Args:
+            names: Optional list of function names to include in the spec.
+
+        Returns:
+            A sequence of OaiToolSpec objects representing the specified functions.
+        """
         if names is None:
             names = list(self._tools.keys())
 
@@ -80,8 +126,19 @@ class LlamdaFunctions:
             self._tools[name].to_tool_schema() for name in names if name in self._tools
         ]
 
-    def execute_function(self, tool_call: LlToolCall) -> ToolResponse:
-        """Executes the function specified in the tool call with the required arguments"""
+    def execute_function(self, tool_call: LlToolCall) -> LLToolResponse:
+        """
+        Executes the function specified in the tool call with the required arguments.
+
+        This method handles various exceptions that might occur during execution
+        and returns appropriate error messages.
+
+        Args:
+            tool_call: An LlToolCall object containing the function name and arguments.
+
+        Returns:
+            An LLToolResponse object containing the execution result or error information.
+        """
         try:
             if tool_call.name not in self._tools:
                 raise KeyError(f"Function '{tool_call.name}' not found")
@@ -95,7 +152,7 @@ class LlamdaFunctions:
         except Exception as e:
             result = {"error": f"Error: {str(e)}"}
 
-        return ToolResponse(
+        return LLToolResponse(
             id=tool_call.id,
             name=tool_call.name,
             arguments=tool_call.arguments,

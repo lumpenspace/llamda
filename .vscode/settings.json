@@ -1,10 +1,6 @@
 {
   "python.testing.pytestArgs": [
-    "tests",
-    "--cov=llamda_fn",
-    "--log-file-level=10",
-    "--log-file=DEBUG",
-    "-s",
+    "tests"
   ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,

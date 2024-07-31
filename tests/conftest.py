@@ -1,6 +1,7 @@
 import pytest
 from llamda_fn.functions import LlamdaFunctions
-from llamda_fn.llms.api_types import LLMessage, LLCompletion, LLMessageMeta, LlToolCall
+from llamda_fn.llms.ll_message import LLMessage, LLMessageMeta
+from llamda_fn.llms.ll_tool import LlToolCall
 
 
 class MockLLManager:
@@ -13,80 +14,72 @@ class MockLLManager:
 
         last_message = messages[-1]
         if last_message.content == "Just give me a simple response.":
-            return LLCompletion(
-                message=LLMessage(
-                    id="chatcmpl-simple",
-                    role="assistant",
-                    content="Here's a simple response without using any functions.",
-                    tool_calls=None,
-                    meta=LLMessageMeta(
-                        choice={"finish_reason": "stop", "index": 0, "logprobs": None},
-                        completion={
-                            "id": "chatcmpl-simple",
-                            "created": 1677652290,
-                            "model": "gpt-3.5-turbo-0613",
-                            "object": "chat.completion",
-                            "system_fingerprint": None,
-                            "usage": None,
-                        },
-                    ),
-                )
+            return LLMessage(
+                id="chatcmpl-simple",
+                role="assistant",
+                content="Here's a simple response without using any functions.",
+                tool_calls=None,
+                meta=LLMessageMeta(
+                    choice={"finish_reason": "stop", "index": 0, "logprobs": None},
+                    completion={
+                        "id": "chatcmpl-simple",
+                        "created": 1677652290,
+                        "model": "gpt-3.5-turbo-0613",
+                        "object": "chat.completion",
+                        "system_fingerprint": None,
+                        "usage": None,
+                    },
+                ),
             )
+
         elif self.call_count == 1:
-            return LLCompletion(
-                message=LLMessage(
-                    id="chatcmpl-1",
-                    role="assistant",
-                    content="Sure, I can help you with that. Let's start by greeting someone.",
-                    tool_calls=[
-                        LlToolCall(
-                            id="call_1", name="greet", arguments='{"name": "Alice"}'
-                        )
-                    ],
-                    meta=LLMessageMeta(
-                        choice={
-                            "finish_reason": "tool_calls",
-                            "index": 0,
-                            "logprobs": None,
-                        },
-                        completion={
-                            "id": "chatcmpl-1",
-                            "created": 1677652288,
-                            "model": "gpt-3.5-turbo-0613",
-                            "object": "chat.completion",
-                            "system_fingerprint": None,
-                            "usage": None,
-                        },
-                    ),
-                )
+            return LLMessage(
+                id="chatcmpl-1",
+                role="assistant",
+                content="Sure, I can help you with that. Let's start by greeting someone.",
+                tool_calls=[
+                    LlToolCall(id="call_1", name="greet", arguments='{"name": "Alice"}')
+                ],
+                meta=LLMessageMeta(
+                    choice={
+                        "finish_reason": "tool_calls",
+                        "index": 0,
+                        "logprobs": None,
+                    },
+                    completion={
+                        "id": "chatcmpl-1",
+                        "created": 1677652288,
+                        "model": "gpt-3.5-turbo-0613",
+                        "object": "chat.completion",
+                        "system_fingerprint": None,
+                        "usage": None,
+                    },
+                ),
             )
+
         elif self.call_count == 2:
-            return LLCompletion(
-                message=LLMessage(
-                    id="chatcmpl-2",
-                    role="assistant",
-                    content="Great! Now let's do a calculation.",
-                    tool_calls=[
-                        LlToolCall(
-                            id="call_2", name="add", arguments='{"x": 5, "y": 3}'
-                        )
-                    ],
-                    meta=LLMessageMeta(
-                        choice={
-                            "finish_reason": "tool_calls",
-                            "index": 0,
-                            "logprobs": None,
-                        },
-                        completion={
-                            "id": "chatcmpl-2",
-                            "created": 1677652289,
-                            "model": "gpt-3.5-turbo-0613",
-                            "object": "chat.completion",
-                            "system_fingerprint": None,
-                            "usage": None,
-                        },
-                    ),
-                )
+            return LLMessage(
+                id="chatcmpl-2",
+                role="assistant",
+                content="Great! Now let's do a calculation.",
+                tool_calls=[
+                    LlToolCall(id="call_2", name="add", arguments='{"x": 5, "y": 3}')
+                ],
+                meta=LLMessageMeta(
+                    choice={
+                        "finish_reason": "tool_calls",
+                        "index": 0,
+                        "logprobs": None,
+                    },
+                    completion={
+                        "id": "chatcmpl-2",
+                        "created": 1677652289,
+                        "model": "gpt-3.5-turbo-0613",
+                        "object": "chat.completion",
+                        "system_fingerprint": None,
+                        "usage": None,
+                    },
+                ),
             )
         else:
             raise ValueError(
