@@ -17,13 +17,13 @@ def test_llamda_function_execution_with_tool_calls(
     completion = mock_ll_manager.chat_completion(messages)
     assert completion.tool_calls is not None
     tool_call = LLToolCall(**completion.tool_calls[0].model_dump())
-    result: LLToolResponse = llamda_functions.execute_function(tool_call)
-    assert isinstance(result, LLToolResponse)
-    assert result.result == '"Hello, Alice!"'
+    response: LLToolResponse = llamda_functions.execute_function(tool_call)
+    assert isinstance(response, LLToolResponse)
+    assert response.result == '"Hello, Alice!"'
 
     # Second interaction: Calculate function
     messages.append(completion)
-    messages.append(LLMessage.from_tool_response(result))
+    messages.append(LLMessage.from_tool_response(response))
     completion = mock_ll_manager.chat_completion(messages)
     assert completion.tool_calls is not None
     tool_call = LLToolCall(**completion.tool_calls[0].model_dump())

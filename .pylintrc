@@ -2,7 +2,7 @@
 ignore-patterns=.*?_test.py
 
 [MESSAGES CONTROL]
-disable=no-docstrings,no-unused,unused-argument
+disable=W0621
 
 [FORMAT]
 max-line-length=100

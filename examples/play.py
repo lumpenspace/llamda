@@ -1,7 +1,7 @@
 from typing import List, Tuple
 
 
-from llamda_fn import Llamda
+from llamda_fn.llamda import Llamda
 from .functions.simple_function_aq import aq
 
 

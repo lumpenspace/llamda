@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "llamda-fn"
+name = "λ"
 version = "0.1.0"
 description = ""
 authors = ["lumpenspace <lumpensapace@gmail.com>"]

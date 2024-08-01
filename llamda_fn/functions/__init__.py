@@ -7,11 +7,9 @@ from .llamda_functions import LlamdaFunctions
 from .process_fields import process_fields
 
 __all__: list[str] = [
-    "llamda_function",
     "LlamdaFunction",
     "LlamdaPydantic",
     "process_fields",
     "LlamdaBase",
-    "llamda_pydantic",
     "LlamdaFunctions",
 ]

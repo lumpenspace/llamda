@@ -7,7 +7,7 @@ including abstract methods for execution and schema generation.
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from llamda_fn.llms.oai_api_types import OaiToolSpec
 
@@ -81,6 +81,7 @@ class LlamdaBase(BaseModel, LlamdaCallable[R]):
     name: str
     description: str
     call_func: Callable[..., R]
+    fields: Dict[str, tuple[type, Any]] = Field(default_factory=dict)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

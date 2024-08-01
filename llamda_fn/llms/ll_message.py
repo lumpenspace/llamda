@@ -30,7 +30,7 @@ class LLMessageMeta(BaseModel):
 class LLMessage(BaseModel):
     """Represents a message in an Exchange"""
 
-    id: str = Field(default_factory=uuid.uuid4)
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     role: OaiRole = "user"
     content: str = ""
     name: str | None = None
@@ -87,7 +87,11 @@ class LLMessage(BaseModel):
     @classmethod
     def from_tool_response(cls, response: LLToolResponse) -> Self:
         """A message containing the result"""
-        return cls(id=response.id, role="tool", content=response.result)
+        return cls(
+            id=f"response{response.tool_call_id}",
+            role="tool",
+            content=response.model_dump_json(),
+        )
 
     @classmethod
     def from_completion(cls, completion: OaiCompletion) -> Self:

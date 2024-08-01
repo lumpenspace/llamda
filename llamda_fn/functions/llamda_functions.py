@@ -109,7 +109,26 @@ class LlamdaFunctions:
         return decorator
 
     @cached_property
-    def spec(self, names: Optional[List[str]] = None) -> Sequence[OaiToolSpec]:
+    def spec(self) -> Sequence[OaiToolSpec]:
+        """
+        Returns the tool spec for all of the functions in the registry.
+
+        Returns:
+            A sequence of OaiToolSpec objects representing the functions.
+        """
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": func.name,
+                    "description": func.description,
+                    "parameters": func.to_schema(),
+                },
+            }
+            for func in self._tools.values()
+        ]
+
+    def get_spec(self, names: Optional[List[str]] = None) -> Sequence[OaiToolSpec]:
         """
         Returns the tool spec for some or all of the functions in the registry.
 
@@ -120,8 +139,7 @@ class LlamdaFunctions:
             A sequence of OaiToolSpec objects representing the specified functions.
         """
         if names is None:
-            names = list(self._tools.keys())
-
+            return self.spec
         return [
             self._tools[name].to_tool_schema() for name in names if name in self._tools
         ]
@@ -145,18 +163,21 @@ class LlamdaFunctions:
 
             parsed_args = json.loads(tool_call.arguments)
             result = self._tools[tool_call.name].run(**parsed_args)
+            success = True
         except KeyError as e:
             result = {"error": f"Error: {str(e)}"}
+            success = False
         except ValidationError as e:
             result = {"error": f"Error: Validation failed - {str(e)}"}
+            success = False
         except Exception as e:
             result = {"error": f"Error: {str(e)}"}
+            success = False
 
         return LLToolResponse(
-            id=tool_call.id,
-            name=tool_call.name,
-            arguments=tool_call.arguments,
+            tool_call_id=tool_call.tool_call_id,
             result=json.dumps(result),
+            success=success,
         )
 
     def __getitem__(self, key: str) -> LlamdaCallable[Any]:

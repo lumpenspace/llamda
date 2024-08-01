@@ -1,99 +1,79 @@
 import pytest
+from typing import Any, Sequence, List
+from unittest.mock import Mock
 from llamda_fn.functions import LlamdaFunctions
+from llamda_fn.functions.process_fields import JsonDict
 from llamda_fn.llms.ll_message import LLMessage, LLMessageMeta
-from llamda_fn.llms.ll_tool import LLToolCall
+from llamda_fn.llms.ll_tool import LLToolCall, LLToolResponse
+from llamda_fn.llamda import Llamda
+from llamda_fn.functions.llamda_function import LlamdaFunction
+from llamda_fn.llms.ll_manager import LLManager
+from pydantic import Field
 
 
-class MockLLManager:
+class MockLLManager(LLManager):
+    call_count: int = 0
+    api_config: JsonDict = Field(default_factory=dict)
+    llm_name: str = "gpt-4o-mini"
+    api: Any = None
+    tools: list[LlamdaFunction[Any]] = Field(default_factory=list)
+
     def __init__(self):
-        self.tools = []
-        self.call_count = 0
+        super().__init__(llm_name="gpt-4o-mini")
 
-    def chat_completion(self, messages):
-        self.call_count += 1  # Correctly increment the call count
+    def query(
+        self,
+        messages: Sequence[LLMessage],
+        llm_name: str | None = None,
+        tools: Any = None,
+    ) -> LLMessage:
+        self.call_count += 1
 
         last_message = messages[-1]
         if last_message.content == "Just give me a simple response.":
             return LLMessage(
-                id="chatcmpl-simple",
                 role="assistant",
                 content="Here's a simple response without using any functions.",
-                tool_calls=None,
-                meta=LLMessageMeta(
-                    choice={"finish_reason": "stop", "index": 0, "logprobs": None},
-                    completion={
-                        "id": "chatcmpl-simple",
-                        "created": 1677652290,
-                        "model": "gpt-3.5-turbo-0613",
-                        "object": "chat.completion",
-                        "system_fingerprint": None,
-                        "usage": None,
-                    },
-                ),
             )
-
         elif self.call_count == 1:
             return LLMessage(
-                id="chatcmpl-1",
                 role="assistant",
                 content="Sure, I can help you with that. Let's start by greeting someone.",
                 tool_calls=[
-                    LLToolCall(id="call_1", name="greet", arguments='{"name": "Alice"}')
+                    LLToolCall(
+                        tool_call_id="call_1",
+                        name="greet",
+                        arguments='{"name": "Alice"}',
+                    )
                 ],
-                meta=LLMessageMeta(
-                    choice={
-                        "finish_reason": "tool_calls",
-                        "index": 0,
-                        "logprobs": None,
-                    },
-                    completion={
-                        "id": "chatcmpl-1",
-                        "created": 1677652288,
-                        "model": "gpt-3.5-turbo-0613",
-                        "object": "chat.completion",
-                        "system_fingerprint": None,
-                        "usage": None,
-                    },
-                ),
             )
-
         elif self.call_count == 2:
             return LLMessage(
-                id="chatcmpl-2",
                 role="assistant",
                 content="Great! Now let's do a calculation.",
                 tool_calls=[
-                    LLToolCall(id="call_2", name="add", arguments='{"x": 5, "y": 3}')
+                    LLToolCall(
+                        tool_call_id="call_2", name="add", arguments='{"x": 5, "y": 3}'
+                    )
                 ],
-                meta=LLMessageMeta(
-                    choice={
-                        "finish_reason": "tool_calls",
-                        "index": 0,
-                        "logprobs": None,
-                    },
-                    completion={
-                        "id": "chatcmpl-2",
-                        "created": 1677652289,
-                        "model": "gpt-3.5-turbo-0613",
-                        "object": "chat.completion",
-                        "system_fingerprint": None,
-                        "usage": None,
-                    },
-                ),
             )
         else:
-            raise ValueError(
-                f"Unexpected call to chat_completion (call_count: {self.call_count})"
+            return LLMessage(
+                role="assistant",
+                content="I don't have any more actions to perform.",
             )
+
+    def chat_completion(self, messages: Sequence[LLMessage]) -> LLMessage:
+        return self.query(messages)
 
 
 @pytest.fixture
-def mock_ll_manager():
+def mock_ll_manager() -> MockLLManager:
     return MockLLManager()
 
 
 @pytest.fixture
-def llamda_functions():
+def llamda_functions() -> LlamdaFunctions:
     llamda = LlamdaFunctions()
 
     @llamda.llamdafy()
@@ -110,8 +90,23 @@ def llamda_functions():
 
 
 @pytest.fixture
-def sample_messages():
-    return [
-        LLMessage(role="system", content="You are a helpful assistant."),
-        LLMessage(role="user", content="Hello, how are you?"),
-    ]
+def llamda_instance(
+    llamda_functions: LlamdaFunctions, mock_ll_manager: MockLLManager
+) -> Llamda:
+    llamda = Llamda(llm_name="mock-llm")
+    llamda.api = mock_ll_manager
+    llamda.functions = llamda_functions
+    llamda.console = Mock()
+    llamda.console.msg = Mock()
+    llamda.console.msg.update_tool = Mock()
+
+    # Mock the _process_tool_call method
+    llamda._process_tool_call = Mock(  # type: ignore
+        side_effect=lambda tool_call: LLToolResponse(
+            tool_call_id=tool_call.tool_call_id,
+            result="Mocked tool result",
+            success=True,
+        )
+    )
+
+    return llamda

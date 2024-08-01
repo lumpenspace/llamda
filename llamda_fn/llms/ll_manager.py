@@ -6,18 +6,18 @@ from pydantic import BaseModel, Field, model_validator, ConfigDict
 from llamda_fn.llms.ll_exchange import LLExchange
 from llamda_fn.llms.oai_api_types import OaiClient, OaiException
 from llamda_fn.llms.ll_message import LLMessage
-from llamda_fn.utils import logger
+from llamda_fn.llogos import LlogosMixin
 from .ll_api_config import LLApiConfig
 
 __all__ = ["LLManager"]
 
 
-class LLManager(BaseModel):
+class LLManager(BaseModel, LlogosMixin):
     """A client and manager for OAI-like LLM APIs"""
 
     api_config: dict[str, Any] = Field(default={})
     llm_name: str = Field(default="gpt-4o-mini")
-    api: OaiClient
+    api: OaiClient | None = None
     _available_llms = []
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -47,6 +47,8 @@ class LLManager(BaseModel):
                     f"Unavailable LLM: {llm_name}",
                     "Available models are: {self._available_llms}",
                 )
+            if self.api is None:
+                raise ValueError("API client is not initialized.")
             return LLMessage.from_completion(
                 self.api.chat.completions.create(
                     messages=messages.oai_props,
@@ -62,7 +64,6 @@ class LLManager(BaseModel):
     def validate_api_and_llm(cls, data: Any) -> Any:
         """Validate the API and model."""
 
-        logger.LOG.console.log(f"data: {data}")
         api_config: Any | dict[Any, Any] = data.get("api_config") or {}
         api: Any | OaiClient = (
             data.get("api")
@@ -74,12 +75,12 @@ class LLManager(BaseModel):
 
         data.update({"api": api})
 
-        available_models: list[str] = [model.id for model in api.models.list()]
-        cls._available_llms: list[str] = available_models
-        data.update({"_available_llms": available_models})
+        available_models: set[str] = {model.id for model in api.models.list()}
+        cls._available_llms: list[str] = list(available_models)
+        data.update({"_available_llms": cls._available_llms})
         if data.get("llm_name") not in available_models:
             raise ValueError(
                 f"Model '{data.get('llm_name')}' is not available. "
-                f"Available models: {', '.join(available_models)}"
+                f"Available models: {', '.join(cls._available_llms)}"
             )
         return data

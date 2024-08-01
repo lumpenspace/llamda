@@ -5,9 +5,13 @@ provides methods for creating, running, and generating schemas for function-base
 Llamda functions with built-in validation using Pydantic models.
 """
 
-from llamda_fn.functions.llamda_callable import LlamdaBase
-from pydantic import BaseModel, Field, create_model
 from typing import Any, Callable, Dict, Type
+
+from pydantic import BaseModel, Field, create_model
+
+from llamda_fn.functions.llamda_callable import LlamdaBase
+from llamda_fn.functions.process_fields import JsonDict
+
 from .llamda_callable import R
 
 __all__ = ["LlamdaFunction"]
@@ -28,7 +32,7 @@ class LlamdaFunction(LlamdaBase[R]):
         call_func: Callable[..., R],
         name: str = "",
         description: str = "",
-        fields: Dict[str, tuple[type, Any]] = {},
+        fields: JsonDict = None,
         **kwargs: Any,
     ) -> "LlamdaFunction[R]":
         """
@@ -87,3 +91,7 @@ class LlamdaFunction(LlamdaBase[R]):
         schema["title"] = self.name
         schema["description"] = self.description
         return schema
+
+    @property
+    def __name__(self) -> str:
+        return self.name

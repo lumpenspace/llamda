@@ -1,8 +1,10 @@
+"""
+Llamda class to create, decorate, and run Llamda functions.
+"""
+
 from typing import Any, Callable, List, Optional, Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 from llamda_fn.llms.ll_tool import LLToolResponse, LLToolCall
 from llamda_fn.llms.ll_message import LLMessage
-from llamda_fn.utils.logger import LOG
 
 from llamda_fn.llms.oai_api_types import OaiToolSpec
 
@@ -10,9 +12,10 @@ from llamda_fn.llms.oai_api_types import OaiToolSpec
 from llamda_fn.functions import LlamdaFunctions
 from llamda_fn.llms.ll_manager import LLManager
 from llamda_fn.llms.ll_exchange import LLExchange
+from llamda_fn.llogos import LlogosMixin
 
 
-class Llamda:
+class Llamda(LlogosMixin):
     """
     Llamda class to create, decorate, and run Llamda functions.
     """
@@ -24,8 +27,9 @@ class Llamda:
         llm_name: str = "gpt-4o-mini",
         **kwargs: Any,
     ):
-        self.max_consecutive_tool_calls: int = max_consecutive_tool_calls
+        super().__init__()
 
+        self.max_consecutive_tool_calls: int = max_consecutive_tool_calls
         self.api = LLManager(llm_name=llm_name, **kwargs)
         self.functions: LlamdaFunctions = LlamdaFunctions()
         self.exchange = LLExchange(system=system)
@@ -43,9 +47,28 @@ class Llamda:
         """
         return self.functions.spec
 
+    def _handle_tool_calls(self, tool_calls: Sequence[LLToolCall]) -> None:
+        for tool_call in tool_calls:
+            result: LLToolResponse = self._process_tool_call(tool_call)
+            self.exchange.append(LLMessage.from_tool_response(response=result))
+            self.msg.update_tool(
+                result.tool_call_id, "Success" if result.success else "Error"
+            )
+
+    def _process_tool_call(self, tool_call: LLToolCall) -> LLToolResponse:
+        """
+        Process a single tool call and return the result.
+        """
+        try:
+            result: LLToolResponse = self.functions.execute_function(
+                tool_call=tool_call
+            )
+            return result
+        except Exception as e:
+            raise e
+
     def run(
         self,
-        tool_names: Optional[List[str]] = None,
         exchange: Optional[LLExchange] = None,
         llm_name: Optional[str] = None,
     ) -> LLMessage:
@@ -54,43 +77,27 @@ class Llamda:
         """
         current_exchange: LLExchange = exchange or self.exchange
 
-        with LOG.live_logging():
+        while True:
             ll_completion: LLMessage = self.api.query(
                 messages=current_exchange,
                 llm_name=llm_name or self.api.llm_name,
-                tools=self.functions.tools if self.functions.tools else None,
+                tools=self.functions.spec if self.functions.spec else None,
             )
             current_exchange.append(ll_completion)
+            self.msg(ll_completion)
             if ll_completion.tool_calls:
                 self._handle_tool_calls(ll_completion.tool_calls)
+            else:
+                return ll_completion  # Return the final message without tool calls
 
-        return current_exchange[-1]
+    def __call__(self, user_input: str) -> LLMessage:
+        # Add user input to the exchange
+        self.exchange.append(LLMessage(role="user", content=user_input))
 
-    def _handle_tool_calls(self, tool_calls: Sequence[LLToolCall]) -> None:
-        LOG.tool_calls(tool_calls)
-        with ThreadPoolExecutor() as executor:
-            futures: List[Future[LLToolResponse]] = [
-                executor.submit(self._process_tool_call, tool_call)
-                for tool_call in tool_calls
-            ]
-            for future in as_completed(futures):
-                result: LLToolResponse = future.result()
-                self.exchange.append(LLMessage.from_tool_response(result))
-        self.run()
+        # Run the LLM
+        result = self.run()
 
-    def _process_tool_call(self, tool_call: LLToolCall) -> LLToolResponse:
-        """
-        Process a single tool call and return the result.
-        """
-        result: LLToolResponse = self.functions.execute_function(tool_call=tool_call)
         return result
 
-    def __call__(self, text: str) -> LLMessage:
-        """
-        Send a message and get a response.
-        """
-        self.exchange.ask(text)
-        return self.run()
 
-
-__all__: List[str] = ["Llamda"]  # Change list to List
+__all__: List[str] = ["Llamda"]

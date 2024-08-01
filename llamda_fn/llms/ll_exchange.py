@@ -4,8 +4,6 @@ from collections import UserList
 from functools import cached_property
 from typing import List, Optional
 
-from llamda_fn.utils.logger import LOG
-
 from .ll_message import LLMessage
 from .oai_api_types import OaiMessage
 
@@ -37,16 +35,9 @@ class LLExchange(UserList[LLMessage]):
 
     def ask(self, text: str) -> None:
         """
-        Adds a user message to the exchange, by text.
+        Adds a user message to the exchange,  by text.
         """
         self.data.append(LLMessage(role="user", content=text))
-
-    def append(self, item: LLMessage) -> None:
-        """
-        Add a message to the exchange.
-        """
-        super().append(item)
-        LOG.msg(item)
 
     def get_context(self, n: int = 5) -> list[LLMessage]:
         """
@@ -72,3 +63,6 @@ class LLExchange(UserList[LLMessage]):
         The exchange as a list of messahes to use with OpenAI-like APIs.
         """
         return [message.oai_props for message in self.data]
+
+    def to_dict(self):
+        return [message.model_dump() for message in self]
