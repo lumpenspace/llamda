@@ -6,19 +6,19 @@ from typing import Any, Callable, List, Optional, Sequence
 from llamda_fn.llms.ll_tool import LLToolResponse, LLToolCall
 from llamda_fn.llms.ll_message import LLMessage
 
-from llamda_fn.llms.oai_api_types import OaiToolSpec
-
 
 from llamda_fn.functions import LlamdaFunctions
 from llamda_fn.llms.ll_manager import LLManager
 from llamda_fn.llms.ll_exchange import LLExchange
-from llamda_fn.llogos import LlogosMixin
+from llamda_fn.llms.oai_api_types import OaiRole
 
 
-class Llamda(LlogosMixin):
+class Llamda:
     """
     Llamda class to create, decorate, and run Llamda functions.
     """
+
+    exchange: LLExchange
 
     def __init__(
         self,
@@ -31,36 +31,39 @@ class Llamda(LlogosMixin):
 
         self.max_consecutive_tool_calls: int = max_consecutive_tool_calls
         self.api = LLManager(llm_name=llm_name, **kwargs)
-        self.functions: LlamdaFunctions = LlamdaFunctions()
+        self._functions: LlamdaFunctions = LlamdaFunctions()
         self.exchange = LLExchange(system=system)
 
-    def fy(self, *args: Any, **kwargs: Any) -> Callable[..., Any]:
+    def fy(
+        self,
+        *args: Any,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Callable[..., Any]:
         """
         Decorator method to create a Llamda function.
         """
-        return self.functions.llamdafy(*args, **kwargs)
+        return self._functions.llamdafy(name=name, description=description, **kwargs)
 
     @property
-    def tools(self) -> Sequence[OaiToolSpec]:
+    def tools(self) -> LlamdaFunctions:
         """
         Get the tools available to the Llamda instance.
         """
-        return self.functions.spec
+        return self._functions
 
     def _handle_tool_calls(self, tool_calls: Sequence[LLToolCall]) -> None:
         for tool_call in tool_calls:
-            result: LLToolResponse = self._process_tool_call(tool_call)
-            self.exchange.append(LLMessage.from_tool_response(response=result))
-            self.msg.update_tool(
-                result.tool_call_id, "Success" if result.success else "Error"
-            )
+            response = self._process_tool_call(tool_call)
+            self.exchange.append(LLMessage.from_tool_response(response))
 
     def _process_tool_call(self, tool_call: LLToolCall) -> LLToolResponse:
         """
         Process a single tool call and return the result.
         """
         try:
-            result: LLToolResponse = self.functions.execute_function(
+            result: LLToolResponse = self._functions.execute_function(
                 tool_call=tool_call
             )
             return result
@@ -69,35 +72,32 @@ class Llamda(LlogosMixin):
 
     def run(
         self,
-        exchange: Optional[LLExchange] = None,
         llm_name: Optional[str] = None,
+        **kwargs: Any,
     ) -> LLMessage:
         """
         Run the OpenAI API with the prepared data.
         """
-        current_exchange: LLExchange = exchange or self.exchange
+        current_exchange: LLExchange = self.exchange
 
-        while True:
-            ll_completion: LLMessage = self.api.query(
-                messages=current_exchange,
-                llm_name=llm_name or self.api.llm_name,
-                tools=self.functions.spec if self.functions.spec else None,
-            )
-            current_exchange.append(ll_completion)
-            self.msg(ll_completion)
-            if ll_completion.tool_calls:
-                self._handle_tool_calls(ll_completion.tool_calls)
-            else:
-                return ll_completion  # Return the final message without tool calls
+        ll_completion: LLMessage = self.api.query(
+            messages=current_exchange,
+            llm_name=llm_name or self.api.llm_name,
+            tools=self._functions.spec if self._functions.spec else None,
+        )
+        current_exchange.append(ll_completion)
+        if ll_completion.tool_calls:
+            self._handle_tool_calls(ll_completion.tool_calls)
+            return self.run(llm_name=llm_name, **kwargs)
+        else:
+            return ll_completion  # Return the final message without tool calls
 
-    def __call__(self, user_input: str) -> LLMessage:
-        # Add user input to the exchange
-        self.exchange.append(LLMessage(role="user", content=user_input))
-
-        # Run the LLM
-        result = self.run()
-
-        return result
+    def ask(
+        self, text: str, *args: Any, role: OaiRole = "user", **kwargs: Any
+    ) -> LLMessage:
+        """ """
+        self.exchange.append(LLMessage(role=role, content=text))
+        return self.run(**kwargs)
 
 
 __all__: List[str] = ["Llamda"]

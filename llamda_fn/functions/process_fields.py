@@ -85,7 +85,6 @@ def process_field(
 
         return field_type, field_schema
     except (SchemaError, ValidationError) as e:
-        print(f"Error processing field: {e}")
         return Any, {"type": "any", "error": str(e)}
 
 

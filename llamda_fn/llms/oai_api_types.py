@@ -9,8 +9,10 @@ from openai.types.chat import (
     ChatCompletionSystemMessageParam as OaiSystemMessage,
     ChatCompletionToolMessageParam as OaiToolMessage,
     ChatCompletionToolParam as OaiToolSpec,
+    ChatCompletionMessageToolCallParam as OaiToolResult,
     ChatCompletion as OaiCompletion,
     ChatCompletionMessage as OaiResponseMessage,
+    ChatCompletionFunctionMessageParam as OaiToolCall,
 )
 
 from openai import OpenAI as OaiClient
@@ -24,6 +26,7 @@ __all__: list[str] = [
     "OaiToolSpec",
     "OaiAssistantMessage",
     "OaiUserMessage",
+    "OaiToolResult",
     "OaiResponseMessage",
     "OaiMessage",
     "OaiRole",
@@ -34,7 +37,7 @@ __all__: list[str] = [
 
 type OaiRole = Literal["user"] | Literal["system"] | Literal["assistant"] | Literal[
     "tool"
-]
+] | Literal["function"]
 
 
 class OaiException(BaseException):

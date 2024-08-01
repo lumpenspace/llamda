@@ -1,11 +1,9 @@
 """Classes which transforms LLamdafunctions into OAI compatible tools"""
 
-from functools import cached_property
-
 from pydantic import BaseModel
 
 
-from .oai_api_types import OaiToolCall, OaiToolMessage
+from .oai_api_types import OaiToolCall, OaiToolMessage, OaiToolResult
 
 __all__: list[str] = ["LLToolCall", "LLToolResponse"]
 
@@ -28,6 +26,18 @@ class LLToolCall(BaseModel):
             arguments=call.function.arguments,
         )
 
+    @property
+    def oai(self) -> OaiToolResult:
+        """The OpenAI-ready version of tool call."""
+        return OaiToolResult(
+            id=self.tool_call_id,
+            type="function",
+            function={
+                "name": self.name,
+                "arguments": self.arguments,
+            },
+        )
+
 
 class LLToolResponse(BaseModel):
     """Describes the result of executing a LLamda Function
@@ -37,9 +47,7 @@ class LLToolResponse(BaseModel):
     success: bool
     result: str = ""
 
-    @cached_property
+    @property
     def oai(self) -> OaiToolMessage:
         """The OpenAI-ready version of tool message."""
-        return OaiToolMessage(
-            tool_call_id=self.tool_call_id, role="tool", content=self.result
-        )
+        return OaiToolMessage(id=self.tool_call_id, role="tool", content=self.result)

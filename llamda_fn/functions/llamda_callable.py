@@ -110,3 +110,8 @@ class LlamdaBase(BaseModel, LlamdaCallable[R]):
                 },
             },
         }
+
+    @property
+    @abstractmethod
+    def parameters(self) -> dict[str, Any]:
+        return self.to_schema()["properties"]

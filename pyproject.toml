@@ -15,6 +15,7 @@ docstring-parser = "^0.16"
 python-dotenv = "^1.0.1"
 rich-cli = "^1.8.0"
 pygments = "^2.18.0"
+keyboard = "^0.13.5"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"

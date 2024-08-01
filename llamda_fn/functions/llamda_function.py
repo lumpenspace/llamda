@@ -32,7 +32,7 @@ class LlamdaFunction(LlamdaBase[R]):
         call_func: Callable[..., R],
         name: str = "",
         description: str = "",
-        fields: JsonDict = None,
+        fields: JsonDict = {},
         **kwargs: Any,
     ) -> "LlamdaFunction[R]":
         """
@@ -65,6 +65,13 @@ class LlamdaFunction(LlamdaBase[R]):
             parameter_model=parameter_model,
             call_func=call_func,
         )
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            field_name: field_info
+            for field_name, field_info in self.parameter_model.model_fields.items()
+        }
 
     def run(self, **kwargs: Any) -> R:
         """

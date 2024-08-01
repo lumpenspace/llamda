@@ -1,11 +1,11 @@
 """LLExchange"""
 
 from collections import UserList
-from functools import cached_property
 from typing import List, Optional
 
 from .ll_message import LLMessage
 from .oai_api_types import OaiMessage
+from ..llogos.llogos import Llogos
 
 __all__: list[str] = ["LLExchange"]
 
@@ -51,13 +51,20 @@ class LLExchange(UserList[LLMessage]):
         """
         return self.data[-n:]
 
+    def append(self, item: LLMessage) -> None:
+        if item.role == "assistant":
+            Llogos.msg(item)
+        elif item.role == "tool":
+            Llogos(item)
+        super().append(item)
+
     def __str__(self) -> str:
         """
         String representation of the exchange.
         """
         return "\n".join(f"{msg.role}: {msg.content}" for msg in self.data)
 
-    @cached_property
+    @property
     def oai_props(self) -> List[OaiMessage]:
         """
         The exchange as a list of messahes to use with OpenAI-like APIs.

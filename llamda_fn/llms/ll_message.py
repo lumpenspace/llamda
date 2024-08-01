@@ -1,23 +1,25 @@
 """Classes related to Messages"""
 
+import json
+from re import S
 import uuid
 from functools import cached_property
 from typing import Any, Self, Sequence
 from pydantic import BaseModel, Field
+from rich.console import Console
 
 from llamda_fn.llms.ll_tool import LLToolCall, LLToolResponse
 from .oai_api_types import (
-    OaiAssistantMessage,
     OaiMessage,
     OaiRole,
-    OaiSystemMessage,
-    OaiToolMessage,
-    OaiUserMessage,
     OaiCompletion,
     OaiResponseMessage,
 )
 
+
 __all__: list[str] = ["LLMessageMeta", "LLMessage"]
+
+console = Console()
 
 
 class LLMessageMeta(BaseModel):
@@ -38,41 +40,48 @@ class LLMessage(BaseModel):
     meta: LLMessageMeta | None = None
 
     @cached_property
-    def oai_props(self) -> OaiMessage:
+    def oai_props(self) -> dict[str, Any]:
         """Rerutns the OpenAI API verison of a message"""
         kwargs: dict[Any, Any] = {}
-        print(f"kwargs: {kwargs}", self.role, self.model_dump())
         role = self.role
         if self.name:
             kwargs["name"] = self.name
         match role:
             case "user":
-                return OaiUserMessage(
-                    role="user",
-                    content=self.content,
+                return {
+                    "role": "user",
+                    "content": self.content,
                     **kwargs,
-                )
+                }
             case "system":
-                return OaiSystemMessage(
-                    role="system",
-                    content=self.content,
+                return {
+                    "role": "system",
+                    "content": self.content,
                     **kwargs,
-                )
+                }
             case "assistant":
                 if self.tool_calls:
+                    console.log(f"tool_calls: {self.tool_calls}")
                     kwargs["tool_calls"] = [
-                        tool_call.model_dump() for tool_call in self.tool_calls or []
+                        tool_call.oai for tool_call in self.tool_calls or []
                     ]
-                return OaiAssistantMessage(
-                    role="assistant",
-                    content=self.content,
+                return {
+                    "role": "assistant",
+                    "content": self.content,
                     **kwargs,
-                )
+                }
             case "tool":
-                return OaiToolMessage(**kwargs, role="tool")
+                return {
+                    "tool_call_id": self.id,
+                    "role": "tool",
+                    "content": self.content,
+                    **kwargs,
+                }
+            case _:
+                raise ValueError(f"Invalid role: {role}")
 
     @classmethod
-    def make_oai_message(cls, **kwargs: Any) -> OaiMessage:
+    def make_oai_message(cls, **kwargs: Any) -> dict[str, Any]:
         """
         Creates an OpenAI-compatible message from the provided keyword arguments.
 
@@ -88,9 +97,9 @@ class LLMessage(BaseModel):
     def from_tool_response(cls, response: LLToolResponse) -> Self:
         """A message containing the result"""
         return cls(
-            id=f"response{response.tool_call_id}",
+            id=response.tool_call_id,
+            content=response.result,
             role="tool",
-            content=response.model_dump_json(),
         )
 
     @classmethod

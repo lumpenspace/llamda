@@ -112,7 +112,6 @@ def test_llamda_call_method(llamda_instance: Llamda, mock_ll_manager: Mock) -> N
     )
 
     result = llamda_instance("User input")
-    print(dumps(llamda_instance.exchange.to_dict(), indent=2))
     assert isinstance(result, LLMessage)
     assert result.content == "Response to user input"
     assert llamda_instance.exchange[-2].content == "User input"

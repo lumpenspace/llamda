@@ -6,13 +6,12 @@ from pydantic import BaseModel, Field, model_validator, ConfigDict
 from llamda_fn.llms.ll_exchange import LLExchange
 from llamda_fn.llms.oai_api_types import OaiClient, OaiException
 from llamda_fn.llms.ll_message import LLMessage
-from llamda_fn.llogos import LlogosMixin
 from .ll_api_config import LLApiConfig
 
 __all__ = ["LLManager"]
 
 
-class LLManager(BaseModel, LlogosMixin):
+class LLManager(BaseModel):
     """A client and manager for OAI-like LLM APIs"""
 
     api_config: dict[str, Any] = Field(default={})
@@ -49,6 +48,7 @@ class LLManager(BaseModel, LlogosMixin):
                 )
             if self.api is None:
                 raise ValueError("API client is not initialized.")
+
             return LLMessage.from_completion(
                 self.api.chat.completions.create(
                     messages=messages.oai_props,
